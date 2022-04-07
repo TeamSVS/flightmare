@@ -22,6 +22,7 @@ from rpg_baselines.torch.common.on_policy_algorithm import \
     OnPolicyAlgorithm
 from rpg_baselines.torch.common.util import plot3d_traj, traj_rollout
 
+
 class PPO(OnPolicyAlgorithm):
     """
     Proximal Policy Optimization algorithm (PPO) (clip version)
