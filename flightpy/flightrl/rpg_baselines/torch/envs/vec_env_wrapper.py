@@ -72,6 +72,8 @@ class FlightEnvVec(VecEnv):
         self.max_episode_steps = 1000
         # VecEnv.__init__(self, self.num_envs,
         #                 self._observation_space, self._action_space)
+        self.is_unity_connected = False
+
 
     def seed(self, seed=0):
         self.wrapper.setSeed(seed)
@@ -136,7 +138,6 @@ class FlightEnvVec(VecEnv):
                     self.sum_reward_components[i, j] = 0.0
                 info[i]["episode"] = epinfo
                 self.rewards[i].clear()
-
         return (
             obs,
             self._reward_components[:, -1].copy(),
@@ -260,9 +261,11 @@ class FlightEnvVec(VecEnv):
         self.wrapper.close()
 
     def connectUnity(self):
+        self.is_unity_connected = True
         self.wrapper.connectUnity()
 
     def disconnectUnity(self):
+        self.is_unity_connected = False
         self.wrapper.disconnectUnity()
 
     def curriculumUpdate(self):
@@ -285,12 +288,10 @@ class FlightEnvVec(VecEnv):
     def env_is_wrapped(
         self, wrapper_class: Type[gym.Wrapper], indices: VecEnvIndices = None
     ) -> List[bool]:
-        """Check if worker environments are wrapped with a given wrapper"""
-        target_envs = self._get_target_envs(indices)
-        # Import here to avoid a circular import
-        from stable_baselines3.common import env_util
-
-        return [env_util.is_wrapped(env_i, wrapper_class) for env_i in target_envs]
+        # the implementation in the original file gives runtime error
+        # here I return true as I don't have access to the single env
+        # but it should be considered when a callback using this method is used
+        return [True]
 
     def _get_target_envs(self, indices: VecEnvIndices) -> List[gym.Env]:
         indices = self._get_indices(indices)
