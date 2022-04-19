@@ -2,6 +2,7 @@ import os
 import pickle
 from copy import deepcopy
 from typing import Any, Callable, List, Optional, Sequence, Type, Union
+import torchvision.transforms as transforms
 
 import gym
 import numpy as np
@@ -21,14 +22,16 @@ class FlightEnvVec(VecEnv):
     def __init__(self, impl):
         self.wrapper = impl
         self.act_dim = self.wrapper.getActDim()
-        self.obs_dim = self.wrapper.getObsDim()
+        #self.obs_dim = self.wrapper.getObsDim()
+        self.obs_dim = 224 * 224 * 3
+
         self.rew_dim = self.wrapper.getRewDim()
         self.img_width = self.wrapper.getImgWidth()
         self.img_height = self.wrapper.getImgHeight()
         self._observation_space = spaces.Box(
-            np.ones(self.obs_dim) * -np.Inf,
-            np.ones(self.obs_dim) * np.Inf,
-            dtype=np.float64,
+            np.ones(self.obs_dim) * 0,
+            np.ones(self.obs_dim) * 255,
+            dtype=np.int,
         )
         self._action_space = spaces.Box(
             low=np.ones(self.act_dim) * -1.0,
@@ -49,7 +52,7 @@ class FlightEnvVec(VecEnv):
         self._reward_components = np.zeros(
             [self.num_envs, self.rew_dim], dtype=np.float64
         )
-        self._done = np.zeros((self.num_envs), dtype=np.bool)
+        self._done = np.zeros(self.num_envs, dtype=np.bool)
         self._extraInfoNames = self.wrapper.getExtraInfoNames()
         self.reward_names = self.wrapper.getRewardNames()
         self._extraInfo = np.zeros(
@@ -138,6 +141,11 @@ class FlightEnvVec(VecEnv):
                     self.sum_reward_components[i, j] = 0.0
                 info[i]["episode"] = epinfo
                 self.rewards[i].clear()
+
+        if self.is_unity_connected:
+            self.render(0)
+        obs = self.getImage(True)
+
         return (
             obs,
             self._reward_components[:, -1].copy(),
@@ -163,11 +171,15 @@ class FlightEnvVec(VecEnv):
         obs = self.normalize_obs(self._observation)
         if self.num_envs == 1:
             return obs[0]
+        if self.is_unity_connected:
+            self.render(0)
+        obs = self.getImage(True)
         return obs
 
     def getObs(self):
         self.wrapper.getObs(self._observation)
-        return self.normalize_obs(self._observation)
+        self.normalize_obs(self._observation)
+        return self.getImage(True)
 
     def reset_and_update_info(self):
         return self.reset(), self._update_epi_info()
@@ -382,6 +394,7 @@ class FlightEnvVec(VecEnv):
         with open(save_path, "wb") as file_handler:
             pickle.dump(self, file_handler)
 
+
     def save_rms(self, save_dir, n_iter) -> None:
         if not os.path.exists(save_dir):
             os.mkdir(save_dir)
@@ -391,6 +404,7 @@ class FlightEnvVec(VecEnv):
             mean=np.asarray(self.obs_rms.mean),
             var=np.asarray(self.obs_rms.var),
         )
+
 
     def load_rms(self, data_dir) -> None:
         self.mean, self.var = None, None
