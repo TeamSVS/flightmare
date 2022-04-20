@@ -1,9 +1,10 @@
 import os
 import pickle
+from abc import ABC
 from copy import deepcopy
 from typing import Any, Callable, List, Optional, Sequence, Type, Union
 import torchvision.transforms as transforms
-
+import random
 import gym
 import numpy as np
 from gym import spaces
@@ -17,10 +18,34 @@ from stable_baselines3.common.vec_env.util import (copy_obs_dict, dict_to_obs,
                                                    obs_space_info)
 
 
-class FlightEnvVec(VecEnv):
-    #
+def _unnormalize_obs(obs: np.ndarray, obs_rms: RunningMeanStd) -> np.ndarray:
+    """
+    Helper to unnormalize observation.
+    :param obs:
+    :param obs_rms: associated statistics
+    :return: unnormalized observation
+    """
+    return (obs * np.sqrt(obs_rms.var + 1e-8)) + obs_rms.mean
+
+
+def _normalize_obs(obs: np.ndarray, obs_rms: RunningMeanStd) -> np.ndarray:
+    """
+    Helper to normalize observation.
+    :param obs:
+    :param obs_rms: associated statistics
+    :return: normalized observation
+    """
+    return (obs - obs_rms.mean) / np.sqrt(obs_rms.var + 1e-8)
+
+
+class FlightEnvVec(VecEnv, ABC):
     def __init__(self, impl):
         self.wrapper = impl
+        self.var = None
+        self.mean = None
+        self.envs = None
+        self._reward = None
+        self.rgb_channel = 3  # rgb channel
         self.act_dim = self.wrapper.getActDim()
         self.obs_dim = self.wrapper.getObsDim()  # C++ obs shape
 
@@ -28,39 +53,39 @@ class FlightEnvVec(VecEnv):
         self.img_width = self.wrapper.getImgWidth()
         self.img_height = self.wrapper.getImgHeight()
         self._observation_space = spaces.Box(
-            np.ones([3, 224, 224]) * 0,
-            np.ones([3, 224, 224]) * 255,
-            dtype=np.int,
+                np.ones([self.rgb_channel, self.img_width, self.img_height]) * 0,
+                np.ones([self.rgb_channel, self.img_width, self.img_height]) * 255,
+                dtype=np.int,
         )
         self._action_space = spaces.Box(
-            low=np.ones(self.act_dim) * -1.0,
-            high=np.ones(self.act_dim) * 1.0,
-            dtype=np.float64,
+                low=np.ones(self.act_dim) * -1.0,
+                high=np.ones(self.act_dim) * 1.0,
+                dtype=np.float64,
         )
         self._observation = np.zeros([self.num_envs, self.obs_dim], dtype=np.float64)
         self._rgb_img_obs = np.zeros(
-            [self.num_envs, self.img_width * self.img_height * 3], dtype=np.uint8
+                [self.num_envs, self.img_width * self.img_height * self.rgb_channel], dtype=np.uint8
         )
         self._gray_img_obs = np.zeros(
-            [self.num_envs, self.img_width * self.img_height], dtype=np.uint8
+                [self.num_envs, self.img_width * self.img_height], dtype=np.uint8
         )
         self._depth_img_obs = np.zeros(
-            [self.num_envs, self.img_width * self.img_height], dtype=np.float32
+                [self.num_envs, self.img_width * self.img_height], dtype=np.float32
         )
         #
         self._reward_components = np.zeros(
-            [self.num_envs, self.rew_dim], dtype=np.float64
+                [self.num_envs, self.rew_dim], dtype=np.float64
         )
         self._done = np.zeros(self.num_envs, dtype=np.bool)
         self._extraInfoNames = self.wrapper.getExtraInfoNames()
         self.reward_names = self.wrapper.getRewardNames()
         self._extraInfo = np.zeros(
-            [self.num_envs, len(self._extraInfoNames)], dtype=np.float64
+                [self.num_envs, len(self._extraInfoNames)], dtype=np.float64
         )
 
         self.rewards = [[] for _ in range(self.num_envs)]
         self.sum_reward_components = np.zeros(
-            [self.num_envs, self.rew_dim - 1], dtype=np.float64
+                [self.num_envs, self.rew_dim - 1], dtype=np.float64
         )
 
         self._quadstate = np.zeros([self.num_envs, 25], dtype=np.float64)
@@ -84,29 +109,29 @@ class FlightEnvVec(VecEnv):
 
     def teststep(self, action):
         self.wrapper.testStep(
-            action,
-            self._observation,
-            self._reward_components,
-            self._done,
-            self._extraInfo,
+                action,
+                self._observation,
+                self._reward_components,
+                self._done,
+                self._extraInfo,
         )
         obs = self.normalize_obs(self._observation)
         return (
-            obs,
-            self._reward_components[:, -1].copy(),
-            self._done.copy(),
-            self._extraInfo.copy(),
+                obs,
+                self._reward_components[:, -1].copy(),
+                self._done.copy(),
+                self._extraInfo.copy(),
         )
 
     def step(self, action):
         if action.ndim <= 1:
             action = action.reshape((-1, self.act_dim))
         self.wrapper.step(
-            action,
-            self._observation,
-            self._reward_components,
-            self._done,
-            self._extraInfo,
+                action,
+                self._observation,
+                self._reward_components,
+                self._done,
+                self._extraInfo,
         )
 
         # update the mean and variance of the Running Mean STD
@@ -115,13 +140,13 @@ class FlightEnvVec(VecEnv):
 
         if len(self._extraInfoNames) != 0:
             info = [
-                {
-                    "extra_info": {
-                        self._extraInfoNames[j]: self._extraInfo[i, j]
-                        for j in range(0, len(self._extraInfoNames))
+                    {
+                            "extra_info": {
+                                    self._extraInfoNames[j]: self._extraInfo[i, j]
+                                    for j in range(0, len(self._extraInfoNames))
+                            }
                     }
-                }
-                for i in range(self.num_envs)
+                    for i in range(self.num_envs)
             ]
         else:
             info = [{} for i in range(self.num_envs)]
@@ -143,10 +168,10 @@ class FlightEnvVec(VecEnv):
         if self.is_unity_connected:
             self.render(0)
         return (
-            np.reshape(self.getImage(True), (32, 3, 224, 224)),
-            self._reward_components[:, -1].copy(),
-            self._done.copy(),
-            info.copy(),
+                np.reshape(self.getImage(True), (32, self.rgb_channel, self.img_width, self.img_height)),
+                self._reward_components[:, -1].copy(),
+                self._done.copy(),
+                info.copy(),
         )
 
     def sample_actions(self):
@@ -158,7 +183,7 @@ class FlightEnvVec(VecEnv):
 
     def reset(self, random=True):
         self._reward_components = np.zeros(
-            [self.num_envs, self.rew_dim], dtype=np.float64
+                [self.num_envs, self.rew_dim], dtype=np.float64
         )
         self.wrapper.reset(self._observation, random)
         obs = self._observation
@@ -170,12 +195,12 @@ class FlightEnvVec(VecEnv):
         if self.is_unity_connected:
             self.render(0)
 
-        return np.reshape(self.getImage(True), (32, 3, 224, 224))
+        return np.reshape(self.getImage(True), (32, self.rgb_channel, self.img_width, self.img_height))
 
     def getObs(self):
         self.wrapper.getObs(self._observation)
         self.normalize_obs(self._observation)
-        return np.reshape(self.getImage(True), (32, 3, 224, 224))
+        return np.reshape(self.getImage(True), (32, self.rgb_channel, self.img_width, self.img_height))
 
     def reset_and_update_info(self):
         return self.reset(), self._update_epi_info()
@@ -200,33 +225,15 @@ class FlightEnvVec(VecEnv):
 
     def stepUnity(self, action, send_id):
         receive_id = self.wrapper.stepUnity(
-            action,
-            self._observation,
-            self._reward,
-            self._done,
-            self._extraInfo,
-            send_id,
+                action,
+                self._observation,
+                self._reward,
+                self._done,
+                self._extraInfo,
+                send_id,
         )
 
         return receive_id
-
-    def _normalize_obs(self, obs: np.ndarray, obs_rms: RunningMeanStd) -> np.ndarray:
-        """
-        Helper to normalize observation.
-        :param obs:
-        :param obs_rms: associated statistics
-        :return: normalized observation
-        """
-        return (obs - obs_rms.mean) / np.sqrt(obs_rms.var + 1e-8)
-
-    def _unnormalize_obs(self, obs: np.ndarray, obs_rms: RunningMeanStd) -> np.ndarray:
-        """
-        Helper to unnormalize observation.
-        :param obs:
-        :param obs_rms: associated statistics
-        :return: unnormalized observation
-        """
-        return (obs * np.sqrt(obs_rms.var + 1e-8)) + obs_rms.mean
 
     def normalize_obs(self, obs: np.ndarray) -> np.ndarray:
         """
@@ -235,7 +242,7 @@ class FlightEnvVec(VecEnv):
         """
         # Avoid modifying by reference the original object
         # obs_ = deepcopy(obs)
-        obs_ = self._normalize_obs(obs, self.obs_rms).astype(np.float64)
+        obs_ = _normalize_obs(obs, self.obs_rms).astype(np.float64)
         return obs_
 
     def getQuadState(self):
@@ -262,7 +269,7 @@ class FlightEnvVec(VecEnv):
             self.rewards[i].clear()
         return info
 
-    def render(self, frame_id, mode="human"):
+    def render(self, frame_id=0):
         return self.wrapper.updateUnity(frame_id)
 
     def close(self):
@@ -289,8 +296,8 @@ class FlightEnvVec(VecEnv):
         """Call instance methods of vectorized environments."""
         target_envs = self._get_target_envs(indices)
         return [
-            getattr(env_i, method_name)(*method_args, **method_kwargs)
-            for env_i in target_envs
+                getattr(env_i, method_name)(*method_args, **method_kwargs)
+                for env_i in target_envs
         ]
 
     def env_is_wrapped(
@@ -330,7 +337,7 @@ class FlightEnvVec(VecEnv):
     def curriculum_callback(self):
         self.wrapper.curriculumUpdate()
 
-    def step_async(self):
+    def step_async(self, actions: np.ndarray):
         raise RuntimeError("This method is not implemented")
 
     def step_wait(self):
@@ -355,7 +362,7 @@ class FlightEnvVec(VecEnv):
         """
         raise RuntimeError("This method is not implemented")
 
-    def env_method(self, method_name, *method_args, indices=None, **method_kwargs):
+    def env_method(self, method_name, *method_args, indices=None, **method_kwargs):  # TODO it is really necessary?
         """
         Call instance methods of vectorized environments.
         :param method_name: (str) The name of the environment method to invoke.
@@ -367,7 +374,7 @@ class FlightEnvVec(VecEnv):
         raise RuntimeError("This method is not implemented")
 
     @staticmethod
-    def load(load_path: str, venv: VecEnv) -> "VecNormalize":
+    def load(load_path: str, venv: VecEnv) -> "Any":
         """
         Loads a saved VecNormalize object.
 
@@ -395,9 +402,9 @@ class FlightEnvVec(VecEnv):
             os.mkdir(save_dir)
         data_path = save_dir + "/iter_{0:05d}".format(n_iter)
         np.savez(
-            data_path,
-            mean=np.asarray(self.obs_rms.mean),
-            var=np.asarray(self.obs_rms.var),
+                data_path,
+                mean=np.asarray(self.obs_rms.mean),
+                var=np.asarray(self.obs_rms.var),
         )
 
     def load_rms(self, data_dir) -> None:

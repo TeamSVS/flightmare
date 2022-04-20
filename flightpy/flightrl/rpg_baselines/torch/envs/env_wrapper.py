@@ -16,23 +16,29 @@ from stable_baselines3.common.vec_env.util import (copy_obs_dict, dict_to_obs,
                                                    obs_space_info)
 
 
+def _normalize_obs(obs: np.ndarray, obs_rms: RunningMeanStd) -> np.ndarray:
+    return (obs - obs_rms.mean) / np.sqrt(obs_rms.var + 1e-8)
+
+
 class FlightEnv(object):
     #
     def __init__(self, impl):
         self.wrapper = impl
+        self.var = None
+        self.mean = None
         self.obs_dim = self.wrapper.getObsDim()
         self.act_dim = self.wrapper.getActDim()
         self.rew_dim = self.wrapper.getRewDim()
         self.num_gates = self.wrapper.getNumGates()
         self._observation_space = spaces.Box(
-            np.ones(self.obs_dim) * -np.Inf,
-            np.ones(self.obs_dim) * np.Inf,
-            dtype=np.float64,
+                np.ones(self.obs_dim) * -np.Inf,
+                np.ones(self.obs_dim) * np.Inf,
+                dtype=np.float64,
         )
         self._action_space = spaces.Box(
-            low=np.ones(self.act_dim) * -1.0,
-            high=np.ones(self.act_dim) * 1.0,
-            dtype=np.float64,
+                low=np.ones(self.act_dim) * -1.0,
+                high=np.ones(self.act_dim) * 1.0,
+                dtype=np.float64,
         )
         #
         self._observation = np.zeros([self.obs_dim], dtype=np.float64)
@@ -82,9 +88,6 @@ class FlightEnv(object):
     def getNumGates(self):
         return self.wrapper.getNumGates()
 
-    def _normalize_obs(self, obs: np.ndarray, obs_rms: RunningMeanStd) -> np.ndarray:
-        return (obs - obs_rms.mean) / np.sqrt(obs_rms.var + 1e-8)
-
     def normalize_obs(self, obs: np.ndarray) -> np.ndarray:
         """
         Normalize observations using this VecNormalize's observations statistics.
@@ -92,7 +95,7 @@ class FlightEnv(object):
         """
         # Avoid modifying by reference the original object
         # obs_ = deepcopy(obs)
-        obs_ = self._normalize_obs(obs, self.obs_rms).astype(np.float64)
+        obs_ = _normalize_obs(obs, self.obs_rms).astype(np.float64)
         return obs_
 
     def connectUnity(self):
@@ -117,11 +120,9 @@ class FlightEnv(object):
         self.wrapper.getQuadState(self._quadstate)
         return self._quadstate.copy()
 
-
     def getQuadAct(self):
         self.wrapper.getQuadAct(self._quadact)
         return self._quadact.copy()
-
 
     @property
     def observation_space(self):
