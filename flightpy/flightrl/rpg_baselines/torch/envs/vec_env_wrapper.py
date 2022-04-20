@@ -168,7 +168,7 @@ class FlightEnvVec(VecEnv, ABC):
         if self.is_unity_connected:
             self.render(0)
         return (
-                np.reshape(self.getImage(True), (32, self.rgb_channel, self.img_width, self.img_height)),
+                np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)),
                 self._reward_components[:, -1].copy(),
                 self._done.copy(),
                 info.copy(),
@@ -195,12 +195,12 @@ class FlightEnvVec(VecEnv, ABC):
         if self.is_unity_connected:
             self.render(0)
 
-        return np.reshape(self.getImage(True), (32, self.rgb_channel, self.img_width, self.img_height))
+        return np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height))
 
     def getObs(self):
         self.wrapper.getObs(self._observation)
         self.normalize_obs(self._observation)
-        return np.reshape(self.getImage(True), (32, self.rgb_channel, self.img_width, self.img_height))
+        return np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height))
 
     def reset_and_update_info(self):
         return self.reset(), self._update_epi_info()
@@ -313,7 +313,7 @@ class FlightEnvVec(VecEnv, ABC):
         return [self.envs[i] for i in indices]
 
     @property
-    def num_envs(self):
+    def num_envs(self):  # For PPO is the batch size
         return self.wrapper.getNumOfEnvs()
 
     @property
