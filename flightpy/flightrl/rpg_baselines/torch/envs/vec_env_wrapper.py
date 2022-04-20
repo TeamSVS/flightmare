@@ -22,15 +22,14 @@ class FlightEnvVec(VecEnv):
     def __init__(self, impl):
         self.wrapper = impl
         self.act_dim = self.wrapper.getActDim()
-        #self.obs_dim = self.wrapper.getObsDim()
-        self.obs_dim = 224 * 224 * 3
+        self.obs_dim = self.wrapper.getObsDim()  # C++ obs shape
 
         self.rew_dim = self.wrapper.getRewDim()
         self.img_width = self.wrapper.getImgWidth()
         self.img_height = self.wrapper.getImgHeight()
         self._observation_space = spaces.Box(
-            np.ones(self.obs_dim) * 0,
-            np.ones(self.obs_dim) * 255,
+            np.ones([3, 224, 224]) * 0,
+            np.ones([3, 224, 224]) * 255,
             dtype=np.int,
         )
         self._action_space = spaces.Box(
@@ -76,7 +75,6 @@ class FlightEnvVec(VecEnv):
         # VecEnv.__init__(self, self.num_envs,
         #                 self._observation_space, self._action_space)
         self.is_unity_connected = False
-
 
     def seed(self, seed=0):
         self.wrapper.setSeed(seed)
@@ -144,10 +142,8 @@ class FlightEnvVec(VecEnv):
 
         if self.is_unity_connected:
             self.render(0)
-        obs = self.getImage(True)
-
         return (
-            obs,
+            np.reshape(self.getImage(True), (32, 3, 224, 224)),
             self._reward_components[:, -1].copy(),
             self._done.copy(),
             info.copy(),
@@ -173,13 +169,13 @@ class FlightEnvVec(VecEnv):
             return obs[0]
         if self.is_unity_connected:
             self.render(0)
-        obs = self.getImage(True)
-        return obs
+
+        return np.reshape(self.getImage(True), (32, 3, 224, 224))
 
     def getObs(self):
         self.wrapper.getObs(self._observation)
         self.normalize_obs(self._observation)
-        return self.getImage(True)
+        return np.reshape(self.getImage(True), (32, 3, 224, 224))
 
     def reset_and_update_info(self):
         return self.reset(), self._update_epi_info()
@@ -284,11 +280,11 @@ class FlightEnvVec(VecEnv):
         self.wrapper.curriculumUpdate()
 
     def env_method(
-        self,
-        method_name: str,
-        *method_args,
-        indices: VecEnvIndices = None,
-        **method_kwargs
+            self,
+            method_name: str,
+            *method_args,
+            indices: VecEnvIndices = None,
+            **method_kwargs
     ) -> List[Any]:
         """Call instance methods of vectorized environments."""
         target_envs = self._get_target_envs(indices)
@@ -298,7 +294,7 @@ class FlightEnvVec(VecEnv):
         ]
 
     def env_is_wrapped(
-        self, wrapper_class: Type[gym.Wrapper], indices: VecEnvIndices = None
+            self, wrapper_class: Type[gym.Wrapper], indices: VecEnvIndices = None
     ) -> List[bool]:
         # the implementation in the original file gives runtime error
         # here I return true as I don't have access to the single env
@@ -394,7 +390,6 @@ class FlightEnvVec(VecEnv):
         with open(save_path, "wb") as file_handler:
             pickle.dump(self, file_handler)
 
-
     def save_rms(self, save_dir, n_iter) -> None:
         if not os.path.exists(save_dir):
             os.mkdir(save_dir)
@@ -404,7 +399,6 @@ class FlightEnvVec(VecEnv):
             mean=np.asarray(self.obs_rms.mean),
             var=np.asarray(self.obs_rms.var),
         )
-
 
     def load_rms(self, data_dir) -> None:
         self.mean, self.var = None, None
