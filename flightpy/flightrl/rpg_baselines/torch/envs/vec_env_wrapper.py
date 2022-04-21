@@ -40,6 +40,7 @@ def _normalize_obs(obs: np.ndarray, obs_rms: RunningMeanStd) -> np.ndarray:
 
 class FlightEnvVec(VecEnv, ABC):
     def __init__(self, impl):
+        self.render_id = 0
         self.wrapper = impl
         self.var = None
         self.mean = None
@@ -166,7 +167,7 @@ class FlightEnvVec(VecEnv, ABC):
                 self.rewards[i].clear()
 
         if self.is_unity_connected:
-            self.render(0)
+            self.render_id = self.render(self.render_id)
         return (
                 np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)),
                 self._reward_components[:, -1].copy(),
@@ -193,7 +194,7 @@ class FlightEnvVec(VecEnv, ABC):
         if self.num_envs == 1:
             return obs[0]
         if self.is_unity_connected:
-            self.render(0)
+            self.render_id = self.render(self.render_id)
 
         return np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height))
 
