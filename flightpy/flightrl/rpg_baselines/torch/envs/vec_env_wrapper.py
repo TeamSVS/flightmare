@@ -38,6 +38,10 @@ def _normalize_obs(obs: np.ndarray, obs_rms: RunningMeanStd) -> np.ndarray:
     return (obs - obs_rms.mean) / np.sqrt(obs_rms.var + 1e-8)
 
 
+def _normalize_rgb_img(obs: np.ndarray) -> np.ndarray:
+    return obs / 255
+
+
 class FlightEnvVec(VecEnv, ABC):
     def __init__(self, impl):
         self.render_id = 0
@@ -54,9 +58,9 @@ class FlightEnvVec(VecEnv, ABC):
         self.img_width = self.wrapper.getImgWidth()
         self.img_height = self.wrapper.getImgHeight()
         self._observation_space = spaces.Box(
-                np.ones([self.rgb_channel, self.img_width, self.img_height]) * 0,
-                np.ones([self.rgb_channel, self.img_width, self.img_height]) * 255,
-                dtype=np.int,
+                np.ones([self.rgb_channel, self.img_width, self.img_height]) * 0.,
+                np.ones([self.rgb_channel, self.img_width, self.img_height]) * 1.,
+                dtype=np.float64,
         )
         self._action_space = spaces.Box(
                 low=np.ones(self.act_dim) * -1.0,
@@ -168,8 +172,10 @@ class FlightEnvVec(VecEnv, ABC):
 
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
+            
         return (
-                np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)),
+                _normalize_rgb_img(np.reshape(self.getImage(True),
+                                              (self.num_envs, self.rgb_channel, self.img_width, self.img_height))),
                 self._reward_components[:, -1].copy(),
                 self._done.copy(),
                 info.copy(),
@@ -196,12 +202,14 @@ class FlightEnvVec(VecEnv, ABC):
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
 
-        return np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height))
+        return _normalize_rgb_img(
+                np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
 
     def getObs(self):
         self.wrapper.getObs(self._observation)
         self.normalize_obs(self._observation)
-        return np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height))
+        return _normalize_rgb_img(
+                np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
 
     def reset_and_update_info(self):
         return self.reset(), self._update_epi_info()
