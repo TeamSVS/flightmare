@@ -1,21 +1,14 @@
 import os
 import pickle
 from abc import ABC
-from copy import deepcopy
-from typing import Any, Callable, List, Optional, Sequence, Type, Union
-import torchvision.transforms as transforms
-import random
+from typing import Any, List, Type
+
 import gym
 import numpy as np
 from gym import spaces
-from numpy.core.fromnumeric import shape
 from stable_baselines3.common.running_mean_std import RunningMeanStd
 from stable_baselines3.common.vec_env.base_vec_env import (VecEnv,
-                                                           VecEnvIndices,
-                                                           VecEnvObs,
-                                                           VecEnvStepReturn)
-from stable_baselines3.common.vec_env.util import (copy_obs_dict, dict_to_obs,
-                                                   obs_space_info)
+                                                           VecEnvIndices)
 
 
 def _unnormalize_obs(obs: np.ndarray, obs_rms: RunningMeanStd) -> np.ndarray:
@@ -47,6 +40,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.envs = None
         self._reward = None
         self.rgb_channel = 3  # rgb channel
+        self.depth_channel = 1
         self.act_dim = self.wrapper.getActDim()
         self.obs_dim = self.wrapper.getObsDim()  # C++ obs shape
 
@@ -54,8 +48,8 @@ class FlightEnvVec(VecEnv, ABC):
         self.img_width = self.wrapper.getImgWidth()
         self.img_height = self.wrapper.getImgHeight()
         self._observation_space = spaces.Box(
-                np.ones([self.rgb_channel, self.img_width, self.img_height]) * 0,
-                np.ones([self.rgb_channel, self.img_width, self.img_height]) * 255,
+                np.ones([self.rgb_channel + self.depth_channel, self.img_width, self.img_height]) * 0,
+                np.ones([self.rgb_channel + self.depth_channel, self.img_width, self.img_height]) * 255,
                 dtype=np.int,
         )
         self._action_space = spaces.Box(
@@ -73,7 +67,8 @@ class FlightEnvVec(VecEnv, ABC):
         self._depth_img_obs = np.zeros(
                 [self.num_envs, self.img_width * self.img_height], dtype=np.float32
         )
-        #
+        self.compactimage = self.getCompactImage()
+
         self._reward_components = np.zeros(
                 [self.num_envs, self.rew_dim], dtype=np.float64
         )
@@ -169,7 +164,7 @@ class FlightEnvVec(VecEnv, ABC):
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
         return (
-                np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)),
+                self.getCompactImage(),
                 self._reward_components[:, -1].copy(),
                 self._done.copy(),
                 info.copy(),
@@ -196,12 +191,11 @@ class FlightEnvVec(VecEnv, ABC):
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
 
-        return np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height))
+        return np.reshape(self.compactimage, (self.num_envs, self.rgb_channel + self.depth_channel, self.img_width, self.img_height))
 
     def getObs(self):
         self.wrapper.getObs(self._observation)
-        self.normalize_obs(self._observation)
-        return np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height))
+        return self.normalize_obs(self._observation)
 
     def reset_and_update_info(self):
         return self.reset(), self._update_epi_info()
@@ -219,6 +213,12 @@ class FlightEnvVec(VecEnv, ABC):
         else:
             self.wrapper.getImage(self._gray_img_obs, False)
             return self._gray_img_obs.copy()
+
+    def getCompactImage(self):
+        self.compactimage = np.concatenate((
+            np.reshape(self.getImage(True), (self.rgb_channel, self.num_envs, self.img_width, self.img_height)),
+            np.reshape(self.getDepthImage(), (self.depth_channel, self.num_envs, self.img_width, self.img_height))))
+        return np.reshape(self.compactimage.copy(), (self.num_envs, self.rgb_channel + self.depth_channel, self.img_width, self.img_height))
 
     def getDepthImage(self):
         self.wrapper.getDepthImage(self._depth_img_obs)

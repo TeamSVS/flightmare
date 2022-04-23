@@ -6,8 +6,8 @@ simulation:
   seed: 1
   sim_dt: 0.02
   max_t: 5.0
-  num_envs: 100
-  num_threads: 10
+  num_envs: 2
+  num_threads: 4
   rotor_ctrl: 1 # 0 single rotor, 1 body rate
 
 quadrotor_dynamics:
