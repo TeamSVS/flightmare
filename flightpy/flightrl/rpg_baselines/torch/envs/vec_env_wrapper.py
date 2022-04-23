@@ -170,9 +170,10 @@ class FlightEnvVec(VecEnv, ABC):
                 info[i]["episode"] = epinfo
                 self.rewards[i].clear()
 
+        print(".")
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
-            
+
         return (
                 _normalize_rgb_img(np.reshape(self.getImage(True),
                                               (self.num_envs, self.rgb_channel, self.img_width, self.img_height))),
@@ -189,6 +190,7 @@ class FlightEnvVec(VecEnv, ABC):
         return np.asarray(actions, dtype=np.float64)
 
     def reset(self, random=True):
+        print("Reset")
         self._reward_components = np.zeros(
                 [self.num_envs, self.rew_dim], dtype=np.float64
         )
@@ -198,7 +200,9 @@ class FlightEnvVec(VecEnv, ABC):
         self.obs_rms_new.update(self._observation)
         obs = self.normalize_obs(self._observation)
         if self.num_envs == 1:
-            return obs[0]
+            return _normalize_rgb_img(
+                    np.reshape(self.getImage(True),
+                               (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))[0]
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
 
