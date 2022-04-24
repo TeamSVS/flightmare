@@ -32,6 +32,7 @@
 #include "flightlib/sensors/rgb_camera.hpp"
 
 using json = nlohmann::json;
+using namespace std;
 
 namespace flightlib {
 
@@ -70,8 +71,13 @@ class UnityBridge {
 
   // create unity bridge
   static std::shared_ptr<UnityBridge> getInstance(int input_port, int output_port) {
-    static std::shared_ptr<UnityBridge> bridge_ptr =
-      std::make_shared<UnityBridge>(input_port, output_port);
+  static std::shared_ptr<UnityBridge> bridge_ptr;
+    if(bridge_ptr != NULL){
+        bridge_ptr->setPubPort(to_string(input_port));
+        bridge_ptr->setSubPort(to_string(output_port));
+    }
+     bridge_ptr = std::make_shared<UnityBridge>(input_port, output_port);
+
     return bridge_ptr;
   };
 
