@@ -187,7 +187,8 @@ bool UnityBridge::addQuadrotor(std::shared_ptr<Quadrotor> quad) {
   vehicle_t.ID = "quadrotor" + std::to_string(settings_.vehicles.size());
   vehicle_t.position = positionRos2Unity(quad_state.p);
   vehicle_t.rotation = quaternionRos2Unity(quad_state.q());
-  vehicle_t.size = scalarRos2Unity(quad->getSize());  // Size of drone
+  vehicle_t.size = scalarRos2Unity(quad->getSize() *
+                                   0.001);  // Size of drone inside environment
 
   // get camera
   std::vector<std::shared_ptr<RGBCamera>> rgb_cameras = quad->getCameras();
