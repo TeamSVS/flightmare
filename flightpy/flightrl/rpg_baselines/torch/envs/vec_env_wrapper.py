@@ -173,6 +173,7 @@ class FlightEnvVec(VecEnv, ABC):
         print(".")
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
+            print(self.getImage(True))
 
         return (
                 _normalize_rgb_img(np.reshape(self.getImage(True),
