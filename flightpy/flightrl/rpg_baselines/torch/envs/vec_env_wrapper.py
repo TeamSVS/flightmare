@@ -187,7 +187,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.obs_rms_new.update(self._observation)
         obs = self.normalize_obs(self._observation)
         if self.num_envs == 1:
-            return obs[0]
+            return np.reshape(self.compactimage, (self.num_envs, self.rgb_channel + self.depth_channel, self.img_width, self.img_height))
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
 
