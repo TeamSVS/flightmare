@@ -9,6 +9,7 @@ import gym
 import numpy as np
 from gym import spaces
 from numpy.core.fromnumeric import shape
+from ruamel.yaml import YAML
 from stable_baselines3.common.running_mean_std import RunningMeanStd
 from stable_baselines3.common.vec_env.base_vec_env import (VecEnv,
                                                            VecEnvIndices,
@@ -57,6 +58,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.rew_dim = self.wrapper.getRewDim()
         self.img_width = self.wrapper.getImgWidth()
         self.img_height = self.wrapper.getImgHeight()
+
         self._observation_space = spaces.Box(
                 np.ones([self.rgb_channel, self.img_width, self.img_height]) * 0.,
                 np.ones([self.rgb_channel, self.img_width, self.img_height]) * 1.,
@@ -67,6 +69,7 @@ class FlightEnvVec(VecEnv, ABC):
                 high=np.ones(self.act_dim) * 1.0,
                 dtype=np.float64,
         )
+
         self._observation = np.zeros([self.num_envs, self.obs_dim], dtype=np.float64)
         self._rgb_img_obs = np.zeros(
                 [self.num_envs, self.img_width * self.img_height * self.rgb_channel], dtype=np.uint8
@@ -97,6 +100,30 @@ class FlightEnvVec(VecEnv, ABC):
         self._quadact = np.zeros([self.num_envs, 4], dtype=np.float64)
         self._flightmodes = np.zeros([self.num_envs, 1], dtype=np.float64)
 
+        ######################################################
+        # Gym spaces of the environment (the actual dimensions for this environment's obs and action)
+        ######################################################
+        depth_space = spaces.Box(
+            low=0, high=1,
+            shape=(1, self.img_height, self.img_width), dtype=np.float64
+        )
+
+        rgb_space = spaces.Box(
+            low=0, high=1,
+            shape=(3, self.img_height, self.img_width), dtype=np.float64
+        )
+        drone_state_space = spaces.Box(
+            low=-np.Inf, high=np.Inf,
+            shape=(13,), dtype=np.float64
+        )
+        combined_space = spaces.Dict(
+            spaces={
+                "drone_state": drone_state_space,
+                "depth": depth_space,
+                "rgb": rgb_space
+            }
+        )
+        #self.observation_space = gym.spaces.Dict(combined_space)
         #  state normalization
         self.obs_rms = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
         self.obs_rms_new = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
@@ -105,6 +132,14 @@ class FlightEnvVec(VecEnv, ABC):
         # VecEnv.__init__(self, self.num_envs,
         #                 self._observation_space, self._action_space)
         self.is_unity_connected = False
+
+        cfg = YAML().load(
+        open(
+                os.environ["FLIGHTMARE_PATH"] + "/flightpy/configs/vision/config.yaml", "r"
+        ))
+        self.goal_pos = cfg["environment"]["goal_pos"]
+
+
 
     def seed(self, seed=0):
         self.wrapper.setSeed(seed)
@@ -128,6 +163,12 @@ class FlightEnvVec(VecEnv, ABC):
                 self._extraInfo.copy(),
         )
 
+    # def computeReward(self):
+    #     for i in range(self.num_envs):
+    #         dis_diff_x =
+
+
+
     def step(self, action):
         if action.ndim <= 1:
             action = action.reshape((-1, self.act_dim))
@@ -138,6 +179,7 @@ class FlightEnvVec(VecEnv, ABC):
                 self._done,
                 self._extraInfo,
         )
+
 
         # update the mean and variance of the Running Mean STD
         self.obs_rms_new.update(self._observation)
@@ -173,7 +215,7 @@ class FlightEnvVec(VecEnv, ABC):
         print(".")
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
-            print(self.getImage(True))
+            #print(self.getImage(True))
 
         return (
                 _normalize_rgb_img(np.reshape(self.getImage(True),
