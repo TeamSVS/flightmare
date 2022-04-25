@@ -157,7 +157,7 @@ class FlightEnvVec(VecEnv, ABC):
 
     def resetPos(self):
         self.getQuadState()
-        for i in range(self.env.num_env):
+        for i in range(self.num_envs):
             self.maxPosX[i] = self._quadstate[i][0]
 
 
