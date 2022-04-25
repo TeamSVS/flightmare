@@ -4,6 +4,8 @@ import threading
 from abc import ABC
 from copy import deepcopy
 from typing import Any, Callable, List, Optional, Sequence, Type, Union
+
+import torch
 import torchvision.transforms as transforms
 import random
 import gym
@@ -39,7 +41,7 @@ def _normalize_obs(obs: np.ndarray, obs_rms: RunningMeanStd) -> np.ndarray:
     return (obs - obs_rms.mean) / np.sqrt(obs_rms.var + 1e-8)
 
 
-def _normalize_rgb_img(obs: np.ndarray) -> np.ndarray:
+def _normalize_img(obs: np.ndarray) -> np.ndarray:
     return obs / 255
 
 
@@ -49,7 +51,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.name = name
         self.sem = threading.Semaphore()
         self.wrapper = impl
-
+        self.is_unity_connected = False
         self.var = None
         self.mean = None
         self.envs = None
@@ -64,10 +66,25 @@ class FlightEnvVec(VecEnv, ABC):
 
         ###--OBS-SPACE--###
 
-        self._observation_space = spaces.Box(
-            np.ones([self.rgb_channel, self.img_width, self.img_height]) * 0.,
-            np.ones([self.rgb_channel, self.img_width, self.img_height]) * 1.,
-            dtype=np.float64,
+        depth_space = spaces.Box(
+            low=0., high=1.,
+            shape=(1, self.img_width, self.img_height), dtype=np.float64
+        )
+        drone_state_space = spaces.Box(
+            low=-np.Inf, high=np.Inf,
+            shape=(13,), dtype=np.float64
+        )
+
+        rgb_space = spaces.Box(
+            low=0., high=1.,
+            shape=(self.rgb_channel, self.img_width, self.img_height), dtype=np.float64
+        )
+
+        self._observation_space = spaces.Dict(
+            spaces={
+                "rgb": rgb_space,
+                "depth": depth_space,
+            }
         )
 
         self._action_space = spaces.Box(
@@ -75,8 +92,9 @@ class FlightEnvVec(VecEnv, ABC):
             high=np.ones(self.act_dim) * 1.0,
             dtype=np.float64,
         )
-        
+
         self._observation = np.zeros([self.num_envs, self.obs_dim], dtype=np.float64)
+
         self._rgb_img_obs = np.zeros(
             [self.num_envs, self.img_width * self.img_height * self.rgb_channel], dtype=np.uint8
         )
@@ -113,7 +131,6 @@ class FlightEnvVec(VecEnv, ABC):
         self.max_episode_steps = 1000
         # VecEnv.__init__(self, self.num_envs,
         #                 self._observation_space, self._action_space)
-        self.is_unity_connected = False
 
     def seed(self, seed=0):
         self.wrapper.setSeed(seed)
@@ -184,9 +201,10 @@ class FlightEnvVec(VecEnv, ABC):
             self.render_id = self.render(self.render_id)
             print(self.getImage(True))
 
+        obs = self.getObs()
+
         return (
-            _normalize_rgb_img(np.reshape(self.getImage(True),
-                                          (self.num_envs, self.rgb_channel, self.img_width, self.img_height))),
+            obs,
             self._reward_components[:, -1].copy(),
             self._done.copy(),
             info.copy(),
@@ -210,20 +228,25 @@ class FlightEnvVec(VecEnv, ABC):
         self.obs_rms_new.update(self._observation)
         obs = self.normalize_obs(self._observation)
         if self.num_envs == 1:
-            return _normalize_rgb_img(
-                np.reshape(self.getImage(True),
-                           (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))[0]
+            return _normalize_img(np.reshape(self.getImage(True),
+                                             (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))[0]
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
-
-        return _normalize_rgb_img(
-            np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
+        obs = self.getObs()
+        return obs
 
     def getObs(self):
+        ## Old Obs ##
         self.wrapper.getObs(self._observation)
         self.normalize_obs(self._observation)
-        return _normalize_rgb_img(
+
+        ## New Obs ##
+        rgb = _normalize_img(
             np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
+        depth = np.reshape(self.getDepthImage(), (self.num_envs, 1, self.img_width, self.img_height))
+        obs = {"depth": depth, "rgb": rgb}
+
+        return obs
 
     def reset_and_update_info(self):
         return self.reset(), self._update_epi_info()
