@@ -46,7 +46,7 @@ def _normalize_img(obs: np.ndarray) -> np.ndarray:
 
 
 class FlightEnvVec(VecEnv, ABC):
-    def __init__(self, impl, name):
+    def __init__(self, impl, name, mode):
         self.render_id = 0
         self.name = name
         self.sem = threading.Semaphore()
@@ -57,6 +57,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.envs = None
         self._reward = None
         self.rgb_channel = 3  # rgb channel
+        self.mode = mode  # rgb, depth, both
 
         self.act_dim = self.wrapper.getActDim()
         self.obs_dim = self.wrapper.getObsDim()  # C++ obs shape
@@ -80,12 +81,29 @@ class FlightEnvVec(VecEnv, ABC):
             shape=(self.rgb_channel, self.img_width, self.img_height), dtype=np.float64
         )
 
-        self._observation_space = spaces.Dict(
-            spaces={
-                "rgb": rgb_space,
-                "depth": depth_space,
-            }
-        )
+        if mode == "rgb":
+            self._observation_space = spaces.Dict(
+                spaces={
+                    "rgb": rgb_space,
+                    "state": drone_state_space
+                }
+            )
+        elif mode == "depth":
+            self._observation_space = spaces.Dict(
+                spaces={
+                    "depth": depth_space,
+                    "state": drone_state_space
+                }
+            )
+
+        else:
+            self._observation_space = spaces.Dict(
+                spaces={
+                    "rgb": rgb_space,
+                    "depth": depth_space,
+                    "state": drone_state_space
+                }
+            )
 
         self._action_space = spaces.Box(
             low=np.ones(self.act_dim) * -1.0,
@@ -241,11 +259,19 @@ class FlightEnvVec(VecEnv, ABC):
         self.normalize_obs(self._observation)
 
         ## New Obs ##
-        rgb = _normalize_img(
-            np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
-        depth = np.reshape(self.getDepthImage(), (self.num_envs, 1, self.img_width, self.img_height))
-        obs = {"depth": depth, "rgb": rgb}
-
+        state = self.getQuadState()[:, :13]
+        if self.mode == "depth":
+            depth = np.reshape(self.getDepthImage(), (self.num_envs, 1, self.img_width, self.img_height))
+            obs = {"depth": depth, "state": state}
+        elif self.mode == "rgb":
+            rgb = _normalize_img(
+                np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
+            obs = {"rgb": rgb, "state": state}
+        else:
+            rgb = _normalize_img(
+                np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
+            depth = np.reshape(self.getDepthImage(), (self.num_envs, 1, self.img_width, self.img_height))
+            obs = {"rgb": rgb, "depth": depth, "state": state}
         return obs
 
     def reset_and_update_info(self):
