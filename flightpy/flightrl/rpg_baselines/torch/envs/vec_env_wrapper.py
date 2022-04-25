@@ -62,7 +62,7 @@ class FlightEnvVec(VecEnv, ABC):
 
         self.act_dim = self.wrapper.getActDim()
         self.obs_dim = self.wrapper.getObsDim()  # C++ obs shape
-        #self.rew_dim = self.wrapper.getRewDim()
+        # self.rew_dim = self.wrapper.getRewDim()
         self.rew_dim = 1
         self.img_width = self.wrapper.getImgWidth()
         self.img_height = self.wrapper.getImgHeight()
@@ -84,28 +84,22 @@ class FlightEnvVec(VecEnv, ABC):
         )
 
         if mode == "rgb":
-            self._observation_space = spaces.Dict(
-                spaces={
-                    "rgb": rgb_space,
-                    "state": drone_state_space
-                }
-            )
+            spaces2 = {
+                "rgb": rgb_space,
+                "state": drone_state_space
+            }
         elif mode == "depth":
-            self._observation_space = spaces.Dict(
-                spaces={
-                    "depth": depth_space,
-                    "state": drone_state_space
-                }
-            )
-
+            spaces2 = {
+                "depth": depth_space,
+                "state": drone_state_space
+            }
         else:
-            self._observation_space = spaces.Dict(
-                spaces={
-                    "rgb": rgb_space,
-                    "depth": depth_space,
-                    "state": drone_state_space
-                }
-            )
+            spaces2 = {
+                "rgb": rgb_space,
+                "depth": depth_space,
+                "state": drone_state_space
+            }
+        self._observation_space = (spaces.Dict(spaces2))
 
         self._action_space = spaces.Box(
             low=np.ones(self.act_dim) * -1.0,
@@ -159,7 +153,6 @@ class FlightEnvVec(VecEnv, ABC):
         self.getQuadState()
         for i in range(self.num_envs):
             self.maxPosX[i] = self._quadstate[i][0]
-
 
     def seed(self, seed=0):
         self.wrapper.setSeed(seed)
