@@ -49,27 +49,33 @@ class FlightEnvVec(VecEnv, ABC):
         self.name = name
         self.sem = threading.Semaphore()
         self.wrapper = impl
+
         self.var = None
         self.mean = None
         self.envs = None
         self._reward = None
         self.rgb_channel = 3  # rgb channel
+
         self.act_dim = self.wrapper.getActDim()
         self.obs_dim = self.wrapper.getObsDim()  # C++ obs shape
-
         self.rew_dim = self.wrapper.getRewDim()
         self.img_width = self.wrapper.getImgWidth()
         self.img_height = self.wrapper.getImgHeight()
+
+        ###--OBS-SPACE--###
+
         self._observation_space = spaces.Box(
             np.ones([self.rgb_channel, self.img_width, self.img_height]) * 0.,
             np.ones([self.rgb_channel, self.img_width, self.img_height]) * 1.,
             dtype=np.float64,
         )
+
         self._action_space = spaces.Box(
             low=np.ones(self.act_dim) * -1.0,
             high=np.ones(self.act_dim) * 1.0,
             dtype=np.float64,
         )
+        
         self._observation = np.zeros([self.num_envs, self.obs_dim], dtype=np.float64)
         self._rgb_img_obs = np.zeros(
             [self.num_envs, self.img_width * self.img_height * self.rgb_channel], dtype=np.uint8
