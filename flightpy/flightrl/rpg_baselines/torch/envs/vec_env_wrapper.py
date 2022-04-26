@@ -63,7 +63,8 @@ class FlightEnvVec(VecEnv, ABC):
 
         self.act_dim = self.wrapper.getActDim()
         self.obs_dim = self.wrapper.getObsDim()  # C++ obs shape
-        self.rew_dim = self.wrapper.getRewDim()
+        # self.rew_dim = self.wrapper.getRewDim()
+        self.rew_dim = 1
         self.img_width = self.wrapper.getImgWidth()
         self.img_height = self.wrapper.getImgHeight()
 
@@ -126,7 +127,7 @@ class FlightEnvVec(VecEnv, ABC):
         )
         #
         self._reward_components = np.zeros(
-            [self.num_envs, self.rew_dim], dtype=np.float64
+            [self.num_envs, self.wrapper.getRewDim()], dtype=np.float64
         )
         self._done = np.zeros(self.num_envs, dtype=np.bool)
         self._extraInfoNames = self.wrapper.getExtraInfoNames()
@@ -137,7 +138,7 @@ class FlightEnvVec(VecEnv, ABC):
 
         self.rewards = [[] for _ in range(self.num_envs)]
         self.sum_reward_components = np.zeros(
-            [self.num_envs, self.rew_dim - 1], dtype=np.float64
+            [self.num_envs, self.wrapper.getRewDim() - 1], dtype=np.float64
         )
 
         self._quadstate = np.zeros([self.num_envs, 25], dtype=np.float64)
@@ -155,12 +156,8 @@ class FlightEnvVec(VecEnv, ABC):
         self.is_unity_connected = False
         self.maxPosX = np.zeros([self.num_envs], dtype=np.float64)
         self.myReward = np.zeros([self.num_envs], dtype=np.float64)
+        self.totalReward = np.zeros([self.num_envs], dtype=np.float64)
 
-    def resetPos(self):
-        self.getQuadState()
-        for i in range(self.num_envs):
-            self.maxPosX[i] = self._quadstate[i][1]
-            self.myReward = np.zeros([self.num_envs], dtype=np.float64)
 
     def seed(self, seed=0):
         self.wrapper.setSeed(seed)
@@ -214,15 +211,13 @@ class FlightEnvVec(VecEnv, ABC):
 
         for i in range(self.num_envs):
             self.rewards[i].append(self._reward_components[i, -1])
-            for j in range(self.rew_dim - 1):
+            for j in range(self.wrapper.getRewDim() - 1):
                 self.sum_reward_components[i, j] += self._reward_components[i, j]
             if self._done[i]:
-
-                eprew = self._quadstate[i][1] - self.maxPosX[i]    #here
-                logging.warning(eprew)
+                eprew = self.myReward[i]
                 eplen = len(self.rewards[i])
                 epinfo = {"r": eprew, "l": eplen}
-                for j in range(self.rew_dim - 1):
+                for j in range(self.wrapper.getRewDim() - 1):
                     epinfo[self.reward_names[j]] = self.sum_reward_components[i, j]
                     self.sum_reward_components[i, j] = 0.0
                 info[i]["episode"] = epinfo
@@ -232,10 +227,19 @@ class FlightEnvVec(VecEnv, ABC):
             self.render_id = self.render(self.render_id)
 
         new_obs = self.getObs()
-        a = self.maxPosX[i] - self._quadstate[i][0]
+        for i in range(self.num_envs):
+            if self._done[i]:
+                self.myReward[i] =-1.0;
+                self.maxPosX[i]=0;
+                self.totalReward =0
+            elif self._quadstate[i][1] > self.maxPosX[i]:
+                self.myReward[i] = self._quadstate[i][1] - self.maxPosX[i]
+                self.maxPosX[i] = self._quadstate[i][1]
+                self.totalReward+=self.myReward[i]
+
         return (
             new_obs,
-            self._reward_components[:, -1].copy(),
+            self.myReward[:].copy(),  # add our reward
             self._done.copy(),
             info.copy(),
         )
@@ -250,7 +254,7 @@ class FlightEnvVec(VecEnv, ABC):
     def reset(self, random=True):
         print("Reset")
         self._reward_components = np.zeros(
-            [self.num_envs, self.rew_dim], dtype=np.float64
+            [self.num_envs, self.wrapper.getRewDim()], dtype=np.float64
         )
         self.wrapper.reset(self._observation, random)
         obs = self._observation
@@ -262,8 +266,6 @@ class FlightEnvVec(VecEnv, ABC):
                                              (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))[0]
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
-
-        self.resetPos()
         new_obs = self.getObs()
         return new_obs
 
