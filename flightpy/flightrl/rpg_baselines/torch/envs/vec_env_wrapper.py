@@ -217,8 +217,10 @@ class FlightEnvVec(VecEnv, ABC):
             for j in range(self.rew_dim - 1):
                 self.sum_reward_components[i, j] += self._reward_components[i, j]
             if self._done[i]:
-                eprew = self._quadstate[i][0] - self.maxPosX[i]  # here
+
+                eprew = self.maxPosX[i] - self._quadstate[i][0]  # here
                 logging.warning(eprew)
+
                 eplen = len(self.rewards[i])
                 epinfo = {"r": eprew, "l": eplen}
                 for j in range(self.rew_dim - 1):
