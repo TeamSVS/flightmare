@@ -158,7 +158,7 @@ class FlightEnvVec(VecEnv, ABC):
     def resetPos(self):
         self.getQuadState()
         for i in range(self.num_envs):
-            self.maxPosX[i] = self._quadstate[i][0]
+            self.maxPosX[i] = self._quadstate[i][1]
             self.myReward = np.zeros([self.num_envs], dtype=np.float64)
 
     def seed(self, seed=0):
@@ -216,7 +216,7 @@ class FlightEnvVec(VecEnv, ABC):
             for j in range(self.rew_dim - 1):
                 self.sum_reward_components[i, j] += self._reward_components[i, j]
             if self._done[i]:
-                eprew = self.maxPosX[i] - self._quadstate[i][0]   #here
+                eprew = self._quadstate[i][1] - self.maxPosX[i]    #here
                 eplen = len(self.rewards[i])
                 epinfo = {"r": eprew, "l": eplen}
                 for j in range(self.rew_dim - 1):
@@ -230,10 +230,10 @@ class FlightEnvVec(VecEnv, ABC):
             print(self.getImage(True))
 
         new_obs = self.getObs()
-
+        a = self.maxPosX[i] - self._quadstate[i][0]
         return (
                 new_obs,
-                self._reward_components[:, -1].copy(),
+                a,
                 self._done.copy(),
                 info.copy(),
         )
