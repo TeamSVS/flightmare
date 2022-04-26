@@ -74,74 +74,74 @@ class FlightEnvVec(VecEnv, ABC):
         ###--OBS-SPACE--###
 
         depth_space = spaces.Box(
-                low=0., high=1.,
-                shape=(1, self.img_width, self.img_height), dtype=np.float64
+            low=0., high=1.,
+            shape=(1, self.img_width, self.img_height), dtype=np.float64
         )
         drone_state_space = spaces.Box(
-                low=-np.Inf, high=np.Inf,
-                shape=(13,), dtype=np.float64
+            low=-np.Inf, high=np.Inf,
+            shape=(13,), dtype=np.float64
         )
 
         rgb_space = spaces.Box(
-                low=0., high=1.,
-                shape=(self.rgb_channel, self.img_width, self.img_height), dtype=np.float64
+            low=0., high=1.,
+            shape=(self.rgb_channel, self.img_width, self.img_height), dtype=np.float64
         )
 
         if mode == "rgb":
             self._observation_space = spaces.Dict(
-                    spaces={
-                            "rgb": rgb_space,
-                            "state": drone_state_space
-                    }
+                spaces={
+                    "rgb": rgb_space,
+                    "state": drone_state_space
+                }
             )
         elif mode == "depth":
             self._observation_space = spaces.Dict(
-                    spaces={
-                            "depth": depth_space,
-                            "state": drone_state_space
-                    }
+                spaces={
+                    "depth": depth_space,
+                    "state": drone_state_space
+                }
             )
 
         else:
             self._observation_space = spaces.Dict(
-                    spaces={
-                            "rgb": rgb_space,
-                            "depth": depth_space,
-                            "state": drone_state_space
-                    }
+                spaces={
+                    "rgb": rgb_space,
+                    "depth": depth_space,
+                    "state": drone_state_space
+                }
             )
 
         self._action_space = spaces.Box(
-                low=np.ones(self.act_dim) * -1.0,
-                high=np.ones(self.act_dim) * 1.0,
-                dtype=np.float64,
+            low=np.ones(self.act_dim) * -1.0,
+            high=np.ones(self.act_dim) * 1.0,
+            dtype=np.float64,
         )
 
         self._observation = np.zeros([self.num_envs, self.obs_dim], dtype=np.float64)
 
         self._rgb_img_obs = np.zeros(
-                [self.num_envs, self.img_width * self.img_height * self.rgb_channel], dtype=np.uint8
+            [self.num_envs, self.img_width * self.img_height * self.rgb_channel], dtype=np.uint8
         )
         self._gray_img_obs = np.zeros(
-                [self.num_envs, self.img_width * self.img_height], dtype=np.uint8
+            [self.num_envs, self.img_width * self.img_height], dtype=np.uint8
         )
         self._depth_img_obs = np.zeros(
-                [self.num_envs, self.img_width * self.img_height], dtype=np.float32
+            [self.num_envs, self.img_width * self.img_height], dtype=np.float32
         )
         #
         self._reward_components = np.zeros(
-                [self.num_envs, self.rew_dim], dtype=np.float64
+            [self.num_envs, self.rew_dim], dtype=np.float64
         )
         self._done = np.zeros(self.num_envs, dtype=np.bool)
         self._extraInfoNames = self.wrapper.getExtraInfoNames()
         self.reward_names = self.wrapper.getRewardNames()
         self._extraInfo = np.zeros(
-                [self.num_envs, len(self._extraInfoNames)], dtype=np.float64
+            [self.num_envs, len(self._extraInfoNames)], dtype=np.float64
         )
 
         self.rewards = [[] for _ in range(self.num_envs)]
         self.sum_reward_components = np.zeros(
-                [self.num_envs, self.rew_dim - 1], dtype=np.float64
+            [self.num_envs, self.rew_dim - 1], dtype=np.float64
         )
 
         self._quadstate = np.zeros([self.num_envs, 25], dtype=np.float64)
@@ -196,18 +196,18 @@ class FlightEnvVec(VecEnv, ABC):
 
     def teststep(self, action):
         self.wrapper.testStep(
-                action,
-                self._observation,
-                self._reward_components,
-                self._done,
-                self._extraInfo,
+            action,
+            self._observation,
+            self._reward_components,
+            self._done,
+            self._extraInfo,
         )
         obs = self.normalize_obs(self._observation)
         return (
-                obs,
-                self._reward_components[:, -1].copy(),
-                self._done.copy(),
-                self._extraInfo.copy(),
+            obs,
+            self._reward_components[:, -1].copy(),
+            self._done.copy(),
+            self._extraInfo.copy(),
         )
 
     # def computeReward(self):
@@ -220,11 +220,11 @@ class FlightEnvVec(VecEnv, ABC):
         if action.ndim <= 1:
             action = action.reshape((-1, self.act_dim))
         self.wrapper.step(
-                action,
-                self._observation,
-                self._reward_components,
-                self._done,
-                self._extraInfo,
+            action,
+            self._observation,
+            self._reward_components,
+            self._done,
+            self._extraInfo,
         )
 
 
@@ -234,13 +234,13 @@ class FlightEnvVec(VecEnv, ABC):
 
         if len(self._extraInfoNames) != 0:
             info = [
-                    {
-                            "extra_info": {
-                                    self._extraInfoNames[j]: self._extraInfo[i, j]
-                                    for j in range(0, len(self._extraInfoNames))
-                            }
+                {
+                    "extra_info": {
+                        self._extraInfoNames[j]: self._extraInfo[i, j]
+                        for j in range(0, len(self._extraInfoNames))
                     }
-                    for i in range(self.num_envs)
+                }
+                for i in range(self.num_envs)
             ]
         else:
             info = [{} for i in range(self.num_envs)]
@@ -268,10 +268,10 @@ class FlightEnvVec(VecEnv, ABC):
         new_obs = self.getObs()
 
         return (
-                new_obs,
-                self._reward_components[:, -1].copy(),
-                self._done.copy(),
-                info.copy(),
+            new_obs,
+            self._reward_components[:, -1].copy(),
+            self._done.copy(),
+            info.copy(),
         )
 
     def sample_actions(self):
@@ -284,7 +284,7 @@ class FlightEnvVec(VecEnv, ABC):
     def reset(self, random=True):
         logging.info("Reset")
         self._reward_components = np.zeros(
-                [self.num_envs, self.rew_dim], dtype=np.float64
+            [self.num_envs, self.rew_dim], dtype=np.float64
         )
         self.wrapper.reset(self._observation, random)
         obs = self._observation
@@ -305,19 +305,34 @@ class FlightEnvVec(VecEnv, ABC):
         self.normalize_obs(self._observation)
         new_obs = None
         ## New Obs ##
-        state = self.getQuadState()[:, :13]
+        # position (z, x, y) = [0:3], attitude=[3:7], linear_velocity=[7:10], angular_velocity=[10:13]
+        drone_state = self.getQuadState()[:, :13].copy()
+        # normalize between -1 and 1
+        drone_state[:, 0] = 2 * drone_state[:, 0] / 10 - 1
+        drone_state[:, 1] = 2 * (drone_state[:, 1] - (-20)) / (80 - (-20)) - 1
+        drone_state[:, 2] = 2 * (drone_state[:, 2] - (-10)) / (10 - (-10)) - 1
+        drone_state[:, 3] = 2 * drone_state[:, 3] / 10 - 1
+        drone_state[:, 8] = 2 * (drone_state[:, 8] - (-35)) / (50 - (-35)) - 1
+        drone_state[:, 9] = 2 * (drone_state[:, 9] - (-35)) / (50 - (-35)) - 1
+        drone_state[:, 10] = 2 * (drone_state[:, 10] - (-30)) / (30 - (-30)) - 1
+        drone_state[:, 11] = 2 * (drone_state[:, 11] - (-10)) / (10 - (-10)) - 1
+        drone_state[:, 12] = 2 * (drone_state[:, 12] - (-10)) / (10 - (-10)) - 1
+
+        if drone_state.max() > 1 or drone_state.min() < -1:
+            logging.error("drone state out of normalization range: {}".format(self._quadstate[:, :13]))
+
         if self.mode == "depth":
             depth = np.reshape(self.getDepthImage(), (self.num_envs, 1, self.img_width, self.img_height))
-            new_obs = {"depth": depth.copy(), "state": state.copy()}
+            new_obs = {"depth": depth.copy(), "state": drone_state}
         elif self.mode == "rgb":
             rgb = _normalize_img(
-                    np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
-            new_obs = {"rgb": rgb.copy(), "state": state.copy()}
+                np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
+            new_obs = {"rgb": rgb.copy(), "state": drone_state}
         else:
             rgb = _normalize_img(
-                    np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
+                np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
             depth = np.reshape(self.getDepthImage(), (self.num_envs, 1, self.img_width, self.img_height))
-            new_obs = {"rgb": rgb.copy(), "depth": depth.copy(), "state": state.copy()}
+            new_obs = {"rgb": rgb.copy(), "depth": depth.copy(), "state": drone_state}
         return new_obs.copy()
 
     def reset_and_update_info(self):
@@ -343,12 +358,12 @@ class FlightEnvVec(VecEnv, ABC):
 
     def stepUnity(self, action, send_id):
         receive_id = self.wrapper.stepUnity(
-                action,
-                self._observation,
-                self._reward,
-                self._done,
-                self._extraInfo,
-                send_id,
+            action,
+            self._observation,
+            self._reward,
+            self._done,
+            self._extraInfo,
+            send_id,
         )
 
         return receive_id
@@ -417,8 +432,8 @@ class FlightEnvVec(VecEnv, ABC):
         """Call instance methods of vectorized environments."""
         target_envs = self._get_target_envs(indices)
         return [
-                getattr(env_i, method_name)(*method_args, **method_kwargs)
-                for env_i in target_envs
+            getattr(env_i, method_name)(*method_args, **method_kwargs)
+            for env_i in target_envs
         ]
 
     def _get_target_envs(self, indices: VecEnvIndices) -> List[gym.Env]:
@@ -476,9 +491,9 @@ class FlightEnvVec(VecEnv, ABC):
             os.mkdir(save_dir)
         data_path = save_dir + "/iter_{0:05d}".format(n_iter)
         np.savez(
-                data_path,
-                mean=np.asarray(self.obs_rms.mean),
-                var=np.asarray(self.obs_rms.var),
+            data_path,
+            mean=np.asarray(self.obs_rms.mean),
+            var=np.asarray(self.obs_rms.var),
         )
 
     def load_rms(self, data_dir) -> None:
