@@ -62,8 +62,7 @@ class FlightEnvVec(VecEnv, ABC):
 
         self.act_dim = self.wrapper.getActDim()
         self.obs_dim = self.wrapper.getObsDim()  # C++ obs shape
-        # self.rew_dim = self.wrapper.getRewDim()
-        self.rew_dim = 1
+        self.rew_dim = self.wrapper.getRewDim()
         self.img_width = self.wrapper.getImgWidth()
         self.img_height = self.wrapper.getImgHeight()
 
@@ -154,11 +153,13 @@ class FlightEnvVec(VecEnv, ABC):
 
         self.is_unity_connected = False
         self.maxPosX = np.zeros([self.num_envs], dtype=np.float64)
+        self.myReward = np.zeros([self.num_envs], dtype=np.float64)
 
     def resetPos(self):
         self.getQuadState()
         for i in range(self.num_envs):
             self.maxPosX[i] = self._quadstate[i][0]
+            self.myReward = np.zeros([self.num_envs], dtype=np.float64)
 
     def seed(self, seed=0):
         self.wrapper.setSeed(seed)
@@ -209,8 +210,20 @@ class FlightEnvVec(VecEnv, ABC):
             ]
         else:
             info = [{} for i in range(self.num_envs)]
-        info = self.getRewards()
 
+        for i in range(self.num_envs):
+            self.rewards[i].append(self._reward_components[i, -1])
+            for j in range(self.rew_dim - 1):
+                self.sum_reward_components[i, j] += self._reward_components[i, j]
+            if self._done[i]:
+                eprew = self._quadstate[i][0] - self.maxPosX[i]  #here
+                eplen = len(self.rewards[i])
+                epinfo = {"r": eprew, "l": eplen}
+                for j in range(self.rew_dim - 1):
+                    epinfo[self.reward_names[j]] = self.sum_reward_components[i, j]
+                    self.sum_reward_components[i, j] = 0.0
+                info[i]["episode"] = epinfo
+                self.rewards[i].clear()
         print("." + self.name)
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
@@ -225,26 +238,6 @@ class FlightEnvVec(VecEnv, ABC):
                 info.copy(),
         )
 
-    def getReward(self, info):
-        self.getQuadState()
-        for i in range(self.num_envs):
-            if self._done[i]:
-                self.maxPosX[i] = 0.0
-                self.rewards[i].append(-1);
-                eprew = sum(self.rewards[i])
-                eplen = len(self.rewards[i])
-                epinfo = {"r": eprew, "l": eplen}
-                for j in range(self.rew_dim - 1):
-                    epinfo[self.reward_names[j]] = self.sum_reward_components[i, j]
-                    self.sum_reward_components[i, j] = 0.0
-                info[i]["episode"] = epinfo
-                self.rewards[i].clear()
-            else:
-                if self.maxPosX[i] < self._quadstate[i][0]:
-                    self.rewards[i].append(self._quadstate[i][0] - self.maxPosX[i])
-                    self.maxPosX[i] = self._quadstate[i][0]
-
-        return info
 
     def sample_actions(self):
         actions = []
