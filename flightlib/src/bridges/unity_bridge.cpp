@@ -20,10 +20,10 @@ UnityBridge::UnityBridge()
 
 UnityBridge::UnityBridge(int input_port, int output_port)
   : client_address_("tcp://*"),
-    //pub_port_("10258"),
-    //sub_port_("10259"),
+    // pub_port_("10258"),
+    // sub_port_("10259"),
     pub_port_(std::to_string(input_port)),
-    sub_port_(std::to_string(output_port)), 
+    sub_port_(std::to_string(output_port)),
     num_frames_(0),
     last_downloaded_utime_(0),
     last_download_debug_utime_(0),
@@ -187,7 +187,8 @@ bool UnityBridge::addQuadrotor(std::shared_ptr<Quadrotor> quad) {
   vehicle_t.ID = "quadrotor" + std::to_string(settings_.vehicles.size());
   vehicle_t.position = positionRos2Unity(quad_state.p);
   vehicle_t.rotation = quaternionRos2Unity(quad_state.q());
-  vehicle_t.size = scalarRos2Unity(quad->getSize());
+  vehicle_t.size = scalarRos2Unity(quad->getSize() *
+                                   0.001);  // Size of drone inside environment
 
   // get camera
   std::vector<std::shared_ptr<RGBCamera>> rgb_cameras = quad->getCameras();

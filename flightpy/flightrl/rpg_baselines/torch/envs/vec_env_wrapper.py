@@ -1,10 +1,14 @@
 import os
 import pickle
+import threading
 from abc import ABC
 from copy import deepcopy
 from typing import Any, Callable, List, Optional, Sequence, Type, Union
+
+import torch
 import torchvision.transforms as transforms
 import random
+import logging
 import gym
 import numpy as np
 from gym import spaces
@@ -39,22 +43,26 @@ def _normalize_obs(obs: np.ndarray, obs_rms: RunningMeanStd) -> np.ndarray:
     return (obs - obs_rms.mean) / np.sqrt(obs_rms.var + 1e-8)
 
 
-def _normalize_rgb_img(obs: np.ndarray) -> np.ndarray:
+def _normalize_img(obs: np.ndarray) -> np.ndarray:
     return obs / 255
 
 
 class FlightEnvVec(VecEnv, ABC):
-    def __init__(self, impl):
+    def __init__(self, impl, name, mode):
         self.render_id = 0
+        self.name = name
+        self.sem = threading.Semaphore()
         self.wrapper = impl
+        self.is_unity_connected = False
         self.var = None
         self.mean = None
         self.envs = None
         self._reward = None
         self.rgb_channel = 3  # rgb channel
+        self.mode = mode  # rgb, depth, both
+
         self.act_dim = self.wrapper.getActDim()
         self.obs_dim = self.wrapper.getObsDim()  # C++ obs shape
-
         self.rew_dim = self.wrapper.getRewDim()
         self.img_width = self.wrapper.getImgWidth()
         self.img_height = self.wrapper.getImgHeight()
@@ -62,8 +70,47 @@ class FlightEnvVec(VecEnv, ABC):
         self._observation_space = spaces.Box(
                 np.ones([self.rgb_channel, self.img_width, self.img_height]) * 0.,
                 np.ones([self.rgb_channel, self.img_width, self.img_height]) * 1.,
-                dtype=np.float64,
+                dtype=np.float64)
+        ###--OBS-SPACE--###
+
+        depth_space = spaces.Box(
+                low=0., high=1.,
+                shape=(1, self.img_width, self.img_height), dtype=np.float64
         )
+        drone_state_space = spaces.Box(
+                low=-np.Inf, high=np.Inf,
+                shape=(13,), dtype=np.float64
+        )
+
+        rgb_space = spaces.Box(
+                low=0., high=1.,
+                shape=(self.rgb_channel, self.img_width, self.img_height), dtype=np.float64
+        )
+
+        if mode == "rgb":
+            self._observation_space = spaces.Dict(
+                    spaces={
+                            "rgb": rgb_space,
+                            "state": drone_state_space
+                    }
+            )
+        elif mode == "depth":
+            self._observation_space = spaces.Dict(
+                    spaces={
+                            "depth": depth_space,
+                            "state": drone_state_space
+                    }
+            )
+
+        else:
+            self._observation_space = spaces.Dict(
+                    spaces={
+                            "rgb": rgb_space,
+                            "depth": depth_space,
+                            "state": drone_state_space
+                    }
+            )
+
         self._action_space = spaces.Box(
                 low=np.ones(self.act_dim) * -1.0,
                 high=np.ones(self.act_dim) * 1.0,
@@ -71,6 +118,7 @@ class FlightEnvVec(VecEnv, ABC):
         )
 
         self._observation = np.zeros([self.num_envs, self.obs_dim], dtype=np.float64)
+
         self._rgb_img_obs = np.zeros(
                 [self.num_envs, self.img_width * self.img_height * self.rgb_channel], dtype=np.uint8
         )
@@ -131,7 +179,6 @@ class FlightEnvVec(VecEnv, ABC):
         self.max_episode_steps = 1000
         # VecEnv.__init__(self, self.num_envs,
         #                 self._observation_space, self._action_space)
-        self.is_unity_connected = False
 
         cfg = YAML().load(
         open(
@@ -212,14 +259,16 @@ class FlightEnvVec(VecEnv, ABC):
                 info[i]["episode"] = epinfo
                 self.rewards[i].clear()
 
-        print(".")
+        logging.info("." + self.name)
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
             #print(self.getImage(True))
+            logging.info(self.getImage(True))
+
+        new_obs = self.getObs()
 
         return (
-                _normalize_rgb_img(np.reshape(self.getImage(True),
-                                              (self.num_envs, self.rgb_channel, self.img_width, self.img_height))),
+                new_obs,
                 self._reward_components[:, -1].copy(),
                 self._done.copy(),
                 info.copy(),
@@ -233,7 +282,7 @@ class FlightEnvVec(VecEnv, ABC):
         return np.asarray(actions, dtype=np.float64)
 
     def reset(self, random=True):
-        print("Reset")
+        logging.info("Reset")
         self._reward_components = np.zeros(
                 [self.num_envs, self.rew_dim], dtype=np.float64
         )
@@ -243,20 +292,33 @@ class FlightEnvVec(VecEnv, ABC):
         self.obs_rms_new.update(self._observation)
         obs = self.normalize_obs(self._observation)
         if self.num_envs == 1:
-            return _normalize_rgb_img(
-                    np.reshape(self.getImage(True),
-                               (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))[0]
+            return _normalize_img(np.reshape(self.getImage(True),
+                                             (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))[0]
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
-
-        return _normalize_rgb_img(
-                np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
+        new_obs = self.getObs()
+        return new_obs
 
     def getObs(self):
+        ## Old Obs ##
         self.wrapper.getObs(self._observation)
         self.normalize_obs(self._observation)
-        return _normalize_rgb_img(
-                np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
+        new_obs = None
+        ## New Obs ##
+        state = self.getQuadState()[:, :13]
+        if self.mode == "depth":
+            depth = np.reshape(self.getDepthImage(), (self.num_envs, 1, self.img_width, self.img_height))
+            new_obs = {"depth": depth.copy(), "state": state.copy()}
+        elif self.mode == "rgb":
+            rgb = _normalize_img(
+                    np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
+            new_obs = {"rgb": rgb.copy(), "state": state.copy()}
+        else:
+            rgb = _normalize_img(
+                    np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
+            depth = np.reshape(self.getDepthImage(), (self.num_envs, 1, self.img_width, self.img_height))
+            new_obs = {"rgb": rgb.copy(), "depth": depth.copy(), "state": state.copy()}
+        return new_obs.copy()
 
     def reset_and_update_info(self):
         return self.reset(), self._update_epi_info()
@@ -326,7 +388,10 @@ class FlightEnvVec(VecEnv, ABC):
         return info
 
     def render(self, frame_id=0):
-        return self.wrapper.updateUnity(frame_id)
+        self.sem.acquire()
+        ret = self.wrapper.updateUnity(frame_id)
+        self.sem.release()
+        return ret
 
     def close(self):
         self.wrapper.close()
@@ -356,14 +421,6 @@ class FlightEnvVec(VecEnv, ABC):
                 for env_i in target_envs
         ]
 
-    def env_is_wrapped(
-            self, wrapper_class: Type[gym.Wrapper], indices: VecEnvIndices = None
-    ) -> List[bool]:
-        # the implementation in the original file gives runtime error
-        # here I return true as I don't have access to the single env
-        # but it should be considered when a callback using this method is used
-        return [True]
-
     def _get_target_envs(self, indices: VecEnvIndices) -> List[gym.Env]:
         indices = self._get_indices(indices)
         return [self.envs[i] for i in indices]
@@ -384,19 +441,76 @@ class FlightEnvVec(VecEnv, ABC):
     def extra_info_names(self):
         return self._extraInfoNames
 
-    def start_recording_video(self, file_name):
-        raise RuntimeError("This method is not implemented")
-
-    def stop_recording_video(self):
-        raise RuntimeError("This method is not implemented")
-
     def curriculum_callback(self):
+
         self.wrapper.curriculumUpdate()
+
+    @staticmethod
+    def load(load_path: str, venv: VecEnv) -> "Any":
+        """
+        Loads a saved VecNormalize object.
+
+        :param load_path: the path to load from.
+        :param venv: the VecEnv to wrap.
+        :return:
+        """
+        with open(load_path, "rb") as file_handler:
+            vec_normalize = pickle.load(file_handler)
+        vec_normalize.set_venv(venv)
+
+        return vec_normalize
+
+    def save(self, save_path: str) -> None:
+        """
+        Save current VecNormalize object with
+        all running statistics and settings (e.g. clip_obs)
+
+        :param save_path: The path to save to
+        """
+
+        with open(save_path, "wb") as file_handler:
+            pickle.dump(self, file_handler)
+
+    def save_rms(self, save_dir, n_iter) -> None:
+        if not os.path.exists(save_dir):
+            os.mkdir(save_dir)
+        data_path = save_dir + "/iter_{0:05d}".format(n_iter)
+        np.savez(
+                data_path,
+                mean=np.asarray(self.obs_rms.mean),
+                var=np.asarray(self.obs_rms.var),
+        )
+
+    def load_rms(self, data_dir) -> None:
+        self.mean, self.var = None, None
+        np_file = np.load(data_dir)
+        #
+        self.mean = np_file["mean"]
+        self.var = np_file["var"]
+        #
+        self.obs_rms.mean = np.mean(self.mean, axis=0)
+        self.obs_rms.var = np.mean(self.var, axis=0)
+
+    ###############################################--NOT IMPLEMENTED METHODS--#######################################
+
+    def env_is_wrapped(
+            self, wrapper_class: Type[gym.Wrapper], indices: VecEnvIndices = None
+    ) -> List[bool]:
+        # the implementation in the original file gives runtime error
+        # here I return true as I don't have access to the single env
+        # but it should be considered when a callback using this method is used
+        return [True]
 
     def step_async(self, actions: np.ndarray):
         raise RuntimeError("This method is not implemented")
 
     def step_wait(self):
+        raise RuntimeError("This method is not implemented")
+
+    def start_recording_video(self, file_name):
+        raise RuntimeError("This method is not implemented")
+
+    def stop_recording_video(self):
         raise RuntimeError("This method is not implemented")
 
     def get_attr(self, attr_name, indices=None):
@@ -428,47 +542,3 @@ class FlightEnvVec(VecEnv, ABC):
         :return: (list) List of items returned by the environment's method call
         """
         raise RuntimeError("This method is not implemented")
-
-    @staticmethod
-    def load(load_path: str, venv: VecEnv) -> "Any":
-        """
-        Loads a saved VecNormalize object.
-
-        :param load_path: the path to load from.
-        :param venv: the VecEnv to wrap.
-        :return:
-        """
-        with open(load_path, "rb") as file_handler:
-            vec_normalize = pickle.load(file_handler)
-        vec_normalize.set_venv(venv)
-        return vec_normalize
-
-    def save(self, save_path: str) -> None:
-        """
-        Save current VecNormalize object with
-        all running statistics and settings (e.g. clip_obs)
-
-        :param save_path: The path to save to
-        """
-        with open(save_path, "wb") as file_handler:
-            pickle.dump(self, file_handler)
-
-    def save_rms(self, save_dir, n_iter) -> None:
-        if not os.path.exists(save_dir):
-            os.mkdir(save_dir)
-        data_path = save_dir + "/iter_{0:05d}".format(n_iter)
-        np.savez(
-                data_path,
-                mean=np.asarray(self.obs_rms.mean),
-                var=np.asarray(self.obs_rms.var),
-        )
-
-    def load_rms(self, data_dir) -> None:
-        self.mean, self.var = None, None
-        np_file = np.load(data_dir)
-        #
-        self.mean = np_file["mean"]
-        self.var = np_file["var"]
-        #
-        self.obs_rms.mean = np.mean(self.mean, axis=0)
-        self.obs_rms.var = np.mean(self.var, axis=0)

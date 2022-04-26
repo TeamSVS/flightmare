@@ -79,7 +79,7 @@ class EnvBase {
   std::normal_distribution<Scalar> norm_dist_{0.0, 1.0};
   std::uniform_real_distribution<Scalar> uniform_dist_{-1.0, 1.0};
   std::random_device rd_;
-  std::mt19937 random_gen_{rd_()};
+  std::mt19937 random_gen_{42};
 };
 
 }  // namespace flightlib

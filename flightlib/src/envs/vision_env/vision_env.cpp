@@ -316,16 +316,16 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   // - tracking the difference between X positions
    Scalar xPos_reward;
    Vector<3> dist = goal_pos_ - quad_state_.p;
-   cout << " min DIS: " << old_dist_[0] << std::endl;
-   cout << " new DIS: " << dist[0] << std::endl;
+   //cout << " min DIS: " << old_dist_[1] << std::endl;
+   //cout << " new DIS: " << dist[1] << std::endl;
 
-    if(dist[0] < old_dist_[0]){
+    if(dist[1] < old_dist_[1]){
         old_dist_ = dist;
         xPos_reward = goal_dist_rew_;
     }else{
         xPos_reward = 0;
     }
-
+    cout << xPos_reward << std::endl;
 
 
   //Scalar xPos_reward = 0.02 * old_dist_.norm();
