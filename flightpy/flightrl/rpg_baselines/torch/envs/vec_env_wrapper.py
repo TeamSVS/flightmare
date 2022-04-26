@@ -9,7 +9,9 @@ from typing import Any, Callable, List, Optional, Sequence, Type, Union
 import torch
 import torchvision.transforms as transforms
 import random
+
 import math
+import logging
 import gym
 import numpy as np
 from gym import spaces
@@ -222,9 +224,11 @@ class FlightEnvVec(VecEnv, ABC):
                     self.sum_reward_components[i, j] = 0.0
                 info[i]["episode"] = epinfo
                 self.rewards[i].clear()
-        logging.info(".")
+
+        logging.info("." + self.name)
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
+            logging.info(self.getImage(True))
 
         new_obs = self.getObs()
         for i in range(self.num_envs):
@@ -252,7 +256,7 @@ class FlightEnvVec(VecEnv, ABC):
         return np.asarray(actions, dtype=np.float64)
 
     def reset(self, random=True):
-        print("Reset")
+        logging.info("Reset")
         self._reward_components = np.zeros(
             [self.num_envs, self.wrapper.getRewDim()], dtype=np.float64
         )
@@ -275,19 +279,34 @@ class FlightEnvVec(VecEnv, ABC):
         self.normalize_obs(self._observation)
         new_obs = None
         ## New Obs ##
-        state = self.getQuadState()[:, :13]
+        # position (z, x, y) = [0:3], attitude=[3:7], linear_velocity=[7:10], angular_velocity=[10:13]
+        drone_state = self.getQuadState()[:, :13].copy()
+        # normalize between -1 and 1
+        drone_state[:, 0] = 2 * drone_state[:, 0] / 10 - 1
+        drone_state[:, 1] = 2 * (drone_state[:, 1] - (-20)) / (80 - (-20)) - 1
+        drone_state[:, 2] = 2 * (drone_state[:, 2] - (-10)) / (10 - (-10)) - 1
+        drone_state[:, 3] = 2 * drone_state[:, 3] / 10 - 1
+        drone_state[:, 8] = 2 * (drone_state[:, 8] - (-35)) / (50 - (-35)) - 1
+        drone_state[:, 9] = 2 * (drone_state[:, 9] - (-35)) / (50 - (-35)) - 1
+        drone_state[:, 10] = 2 * (drone_state[:, 10] - (-30)) / (30 - (-30)) - 1
+        drone_state[:, 11] = 2 * (drone_state[:, 11] - (-10)) / (10 - (-10)) - 1
+        drone_state[:, 12] = 2 * (drone_state[:, 12] - (-10)) / (10 - (-10)) - 1
+
+        if drone_state.max() > 1 or drone_state.min() < -1:
+            logging.error("drone state out of normalization range: {}".format(self._quadstate[:, :13]))
+
         if self.mode == "depth":
             depth = np.reshape(self.getDepthImage(), (self.num_envs, 1, self.img_width, self.img_height))
-            new_obs = {"depth": depth.copy(), "state": state.copy()}
+            new_obs = {"depth": depth.copy(), "state": drone_state}
         elif self.mode == "rgb":
             rgb = _normalize_img(
                 np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
-            new_obs = {"rgb": rgb.copy(), "state": state.copy()}
+            new_obs = {"rgb": rgb.copy(), "state": drone_state}
         else:
             rgb = _normalize_img(
                 np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
             depth = np.reshape(self.getDepthImage(), (self.num_envs, 1, self.img_width, self.img_height))
-            new_obs = {"rgb": rgb.copy(), "depth": depth.copy(), "state": state.copy()}
+            new_obs = {"rgb": rgb.copy(), "depth": depth.copy(), "state": drone_state}
         return new_obs.copy()
 
     def reset_and_update_info(self):
