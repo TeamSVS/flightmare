@@ -8,6 +8,7 @@ from typing import Any, Callable, List, Optional, Sequence, Type, Union
 import torch
 import torchvision.transforms as transforms
 import random
+import logging
 import gym
 import numpy as np
 from gym import spaces
@@ -214,10 +215,10 @@ class FlightEnvVec(VecEnv, ABC):
                 info[i]["episode"] = epinfo
                 self.rewards[i].clear()
 
-        print("." + self.name)
+        logging.info("." + self.name)
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
-            print(self.getImage(True))
+            logging.info(self.getImage(True))
 
         obs = self.getObs()
 
@@ -236,7 +237,7 @@ class FlightEnvVec(VecEnv, ABC):
         return np.asarray(actions, dtype=np.float64)
 
     def reset(self, random=True):
-        print("Reset")
+        logging.info("Reset")
         self._reward_components = np.zeros(
             [self.num_envs, self.rew_dim], dtype=np.float64
         )
