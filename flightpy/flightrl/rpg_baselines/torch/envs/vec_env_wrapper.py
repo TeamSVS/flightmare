@@ -159,7 +159,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.maxPosX = np.zeros([self.num_envs], dtype=np.float64)
         self.myReward = np.zeros([self.num_envs], dtype=np.float64)
         self.totalReward = np.zeros([self.num_envs], dtype=np.float64)
-
+        self.totalsteps = np.zeros([self.num_envs], dtype=np.float64)
 
     def seed(self, seed=0):
         self.wrapper.setSeed(seed)
@@ -198,49 +198,38 @@ class FlightEnvVec(VecEnv, ABC):
         self.obs_rms_new.update(self._observation)
         obs = self.normalize_obs(self._observation)
 
-        if len(self._extraInfoNames) != 0:
-            info = [
-                {
-                    "extra_info": {
-                        self._extraInfoNames[j]: self._extraInfo[i, j]
-                        for j in range(0, len(self._extraInfoNames))
-                    }
-                }
-                for i in range(self.num_envs)
-            ]
-        else:
-            info = [{} for i in range(self.num_envs)]
-
-        for i in range(self.num_envs):
-            self.rewards[i].append(self._reward_components[i, -1])
-            for j in range(self.wrapper.getRewDim() - 1):
-                self.sum_reward_components[i, j] += self._reward_components[i, j]
-            if self._done[i]:
-                eprew = self.myReward[i]
-                eplen = len(self.rewards[i])
-                epinfo = {"r": eprew, "l": eplen}
-                for j in range(self.wrapper.getRewDim() - 1):
-                    epinfo[self.reward_names[j]] = self.sum_reward_components[i, j]
-                    self.sum_reward_components[i, j] = 0.0
-                info[i]["episode"] = epinfo
-                self.rewards[i].clear()
-
         logging.info("." + self.name)
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
             logging.info(self.getImage(True))
 
+            if len(self._extraInfoNames) != 0:
+                info = [
+                    {
+                        "extra_info": {
+                            self._extraInfoNames[j]: self._extraInfo[i, j]
+                            for j in range(0, len(self._extraInfoNames))
+                        }
+                    }
+                    for i in range(self.num_envs)
+                ]
+            else:
+                info = [{} for i in range(self.num_envs)]
+
         new_obs = self.getObs()
         for i in range(self.num_envs):
             if self._done[i]:
-                self.myReward[i] =-1.0;
-                self.maxPosX[i]=0;
-                self.totalReward =0
+                self.myReward[i] = -1.0;
+                self.maxPosX[i] = 0;
+                info[i]["episode"] = {"reward": self.totalReward[i]}
+                self.totalsteps[i] = 0
+                self.totalReward[i] = 0
             elif self._quadstate[i][1] > self.maxPosX[i]:
-                self.myReward[i] = self._quadstate[i][1] - self.maxPosX[i]
+                self.totalsteps[i] += 1
+                self.myReward[i] = self._quadstate[i][1] - self.maxPosX[i] - 0.1 * math.pow(1.022, self.totalsteps[i])
                 self.maxPosX[i] = self._quadstate[i][1]
-                self.totalReward+=self.myReward[i]
-
+                self.totalReward[i] += self.myReward[i]
+            info[i] = {"reward": self.myReward[i]}
         return (
             new_obs,
             self.myReward[:].copy(),  # add our reward
