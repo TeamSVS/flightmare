@@ -201,7 +201,7 @@ class FlightEnvVec(VecEnv, ABC):
         logging.info("." + self.name)
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
-            logging.info(self.getImage(True))
+            logging.debug(self.getImage(True))
 
             if len(self._extraInfoNames) != 0:
                 info = [
