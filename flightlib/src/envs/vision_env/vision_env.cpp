@@ -104,9 +104,7 @@ bool VisionEnv::reset(Ref<Vector<>> obs) {
   quad_state_.x(QS::POSY) = uniform_dist_(random_gen_) * 9.0;
   quad_state_.x(QS::POSZ) = uniform_dist_(random_gen_) * 4 + 5.0;
 
-  old_dist_[0] = 1000000;
-  old_dist_[1] = 1000000;
-  old_dist_[2] = 1000000;
+  max_dist_ = goal_pos_ - quad_state_.p;
 
   // reset quadrotor with random states
   quad_ptr_->reset(quad_state_);
@@ -313,52 +311,52 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
     idx += 1;
   }
 
-  // - tracking the difference between X positions
-   Scalar xPos_reward;
-   Vector<3> dist = goal_pos_ - quad_state_.p;
-   //cout << " min DIS: " << old_dist_[1] << std::endl;
-   //cout << " new DIS: " << dist[1] << std::endl;
+  // - tracking the difference between max and actua distances
+    //Vector<3> actua_dist = goal_pos_ - quad_state_.p;
+  //Scalar dist_reward = (max_dist_+ actua_dist).norm() * (max_dist_- actua_dist).norm() / 10000;
+  // Scalar dist_reward =  pow((max_dist_- actua_dist).norm(), 2) / (pow((max_dist_).norm(), 2) + 1);
+    Scalar dist_reward = goal_dist_rew_ * quad_state_.p(QS::POSX) / goal_pos_[0];
 
-    if(dist[1] < old_dist_[1]){
-        old_dist_ = dist;
-        xPos_reward = goal_dist_rew_;
-    }else{
-        xPos_reward = 0;
-    }
-    cout << xPos_reward << std::endl;
-
-
-  //Scalar xPos_reward = 0.02 * old_dist_.norm();
-   // vel_coeff_ * (quad_state_.v - goal_linear_vel_).norm();
+ // - tracking a constant linear velocity
+  Scalar lin_vel_reward =
+    vel_coeff_ * (quad_state_.v - goal_linear_vel_).norm();
 
   // - angular velocity penalty, to avoid oscillations
-  //const Scalar ang_vel_penalty = angular_vel_coeff_ * quad_state_.w.norm();
+  const Scalar ang_vel_penalty = angular_vel_coeff_ * quad_state_.w.norm();
 
   //  change progress reward as survive reward
   const Scalar total_reward =
-        xPos_reward + collision_penalty;
+        dist_reward + collision_penalty + lin_vel_reward + ang_vel_penalty + survive_rew_;
     //lin_vel_reward + collision_penalty + ang_vel_penalty + survive_rew_;
-
+    
+  //logger_.info(to_string(    total_reward    ));
     // return all reward components for debug purposes
-    reward << xPos_reward, collision_penalty, total_reward;
+    reward << dist_reward, collision_penalty, lin_vel_reward, ang_vel_penalty, survive_rew_, total_reward;
   return true;
 }
 
 bool VisionEnv::isTerminalState(Scalar &reward) {
 
-  if (is_collision_) {
-      reward = -1.0;
-      std::cout << "Collision!\n";
-      cout << "------------------------------------------done" << endl;
-      return true;
-  }
+//for this competitio, only evaluate x position
+if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 0.1){
+  reward = 1.0;
+  std::cout << "reached target position!\n";
+  return true;
+}
 
-  // simulation time out
-  if (cmd_.t >= max_t_ - sim_dt_) {
-    reward = 0.0;
-    std::cout << "Timeout!\n";
-    return true;
-  }
+  //collsion
+  //if (is_collision_) {
+      //reward = -1.0;
+      //std::cout << "Collision!\n";
+      //return true;
+  //}
+
+ //simulation time out
+ if (cmd_.t >= max_t_ - sim_dt_) {
+   reward = 0.0;
+   std::cout << "Timeout!\n";
+   return true;
+ }
 
   // world boundling box check
   // - x, y, and z
@@ -370,24 +368,24 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
   bool z_valid = quad_state_.x(QS::POSZ) >= world_box_[4] + safty_threshold &&
                  quad_state_.x(QS::POSZ) <= world_box_[5] - safty_threshold;
  if (!x_valid || !y_valid || !z_valid) {
-    std::cout << "Drone X:" << quad_state_.p(QS::POSX) << "\n";
-    std::cout << "Drone Y:" << quad_state_.p(QS::POSY) << "\n";
-    std::cout << "Drone Z:" << quad_state_.p(QS::POSZ) << "\n";
-
-    if(!x_valid){
-      std::cout << "Drone X " << quad_state_.p(QS::POSX) << " >= " << world_box_[0] + safty_threshold << " ?\n";
-      std::cout << "Drone X " << quad_state_.p(QS::POSX) << " <= " << world_box_[1] - safty_threshold << " ?\n";
-    }
-
-    if(!y_valid){
-      std::cout << "Drone Y " << quad_state_.p(QS::POSY) << " >= " << world_box_[2] + safty_threshold << " ?\n";
-      std::cout << "Drone Y " << quad_state_.p(QS::POSY) << " <= " << world_box_[3] - safty_threshold << " ?\n";
-    }
-
-    if(!z_valid){
-      std::cout << "Drone Z " << quad_state_.p(QS::POSZ) << " >= " << world_box_[4] + safty_threshold << " ?\n";
-      std::cout << "Drone Z " << quad_state_.p(QS::POSZ) << " <= " << world_box_[5] - safty_threshold << " ?\n";
-    }
+//    std::cout << "Drone X:" << quad_state_.p(QS::POSX) << "\n";
+//    std::cout << "Drone Y:" << quad_state_.p(QS::POSY) << "\n";
+//    std::cout << "Drone Z:" << quad_state_.p(QS::POSZ) << "\n";
+//
+//    if(!x_valid){
+//      std::cout << "Drone X " << quad_state_.p(QS::POSX) << " >= " << world_box_[0] + safty_threshold << " ?\n";
+//      std::cout << "Drone X " << quad_state_.p(QS::POSX) << " <= " << world_box_[1] - safty_threshold << " ?\n";
+//    }
+//
+//    if(!y_valid){
+//      std::cout << "Drone Y " << quad_state_.p(QS::POSY) << " >= " << world_box_[2] + safty_threshold << " ?\n";
+//      std::cout << "Drone Y " << quad_state_.p(QS::POSY) << " <= " << world_box_[3] - safty_threshold << " ?\n";
+//    }
+//
+//    if(!z_valid){
+//      std::cout << "Drone Z " << quad_state_.p(QS::POSZ) << " >= " << world_box_[4] + safty_threshold << " ?\n";
+//      std::cout << "Drone Z " << quad_state_.p(QS::POSZ) << " <= " << world_box_[5] - safty_threshold << " ?\n";
+//    }
 
     std::cout << "XYZ not valid\n";
 
