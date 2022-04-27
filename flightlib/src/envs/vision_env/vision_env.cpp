@@ -339,7 +339,7 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
 
 //for this competitio, only evaluate x position
 if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 0.1){
-  reward = 1.0;
+  reward = 3.0;
   std::cout << "reached target position!\n";
   return true;
 }
