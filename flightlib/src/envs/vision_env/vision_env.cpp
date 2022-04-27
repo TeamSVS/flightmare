@@ -387,7 +387,7 @@ if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 0.1){
 //      std::cout << "Drone Z " << quad_state_.p(QS::POSZ) << " <= " << world_box_[5] - safty_threshold << " ?\n";
 //    }
 
-    std::cout << "XYZ not valid\n";
+    //std::cout << "XYZ not valid\n";
 
     reward = -1.0;
     return true;
