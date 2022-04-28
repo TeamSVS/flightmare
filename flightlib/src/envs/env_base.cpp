@@ -21,6 +21,8 @@ bool EnvBase::addQuadrotorToUnity(const std::shared_ptr<UnityBridge> bridge) {
   return false;
 }
 
+void EnvBase::setFakeQuadrotorScale(int scale) {}
+
 void EnvBase::curriculumUpdate() {}
 
 void EnvBase::close() {}
