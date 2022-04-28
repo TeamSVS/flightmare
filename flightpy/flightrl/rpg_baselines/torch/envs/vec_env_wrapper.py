@@ -227,33 +227,33 @@ class FlightEnvVec(VecEnv, ABC):
             z = self.goalPos[i][2] - self._quadstate[i][2]
             distance = math.sqrt(x * x + y * y + z * z)  # new distance
             if self._done[i]:
-                self.myReward[i] = -1.0
+                self.myReward[i] = -10.0
                 self.totalReward[i] += self.myReward[i]
                 info[i]["episode"] = {"reward": self.totalReward[i]}
                 self.totalsteps[i] = 0
                 self.totalReward[i] = 0
-                self.maxDistanceReached[i] = 0
-            elif distance < self.maxDistanceReached[i]:
+            else:
+
                 if (distance / self.distanceMaximus[i]) < 0.005:
                     self._done[i] = True
-                    self.myReward[i] = 500.0/self.totalsteps
+                    self.myReward[i] = 500.0 / self.totalsteps
                     self.totalReward[i] += self.myReward[i]
                     info[i]["episode"] = {"reward": self.totalReward[i]}
                     self.totalsteps[i] = 0
                     self.totalReward[i] = 0
-                    self.maxDistanceReached[i] = 0
-                else :
+                else:
                     step = self.maxDistanceReached[i] - distance  # new step
-                    self.maxDistanceReached[i] = distance
+                    if distance < self.maxDistanceReached[i]:
+                        self.maxDistanceReached[i] = distance
                     self.totalsteps[i] += 1
                     for j in range(3):  # inizialize
                         self.maxPos[i][j] = self._quadstate[i][j]
 
                     drim = self.distanceMaximus[i] - self.maxDistanceReached[i]  # distance left
-                    self.myReward[i] = ((self.distanceMaximus[i] * self.distanceMaximus[i]
-                                         - (distance * distance) + (self.distanceMaximus[i] * step) - (
-                                         drim / 2) * self.totalsteps[i]) / (self.distanceMaximus[i] * self.distanceMaximus[i]))
+                    self.myReward[i] = ((self.maxDistanceReached[i] - distance - self.totalsteps[i]/100) / (
+                        self.distanceMaximus[i]))
                     self.totalReward[i] += self.myReward[i]
+
             info[i] = {"reward": self.myReward[i]}
         return (
             new_obs,
