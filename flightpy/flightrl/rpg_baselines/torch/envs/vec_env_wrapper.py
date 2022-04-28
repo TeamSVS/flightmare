@@ -24,9 +24,18 @@ from stable_baselines3.common.vec_env.base_vec_env import (VecEnv,
 from stable_baselines3.common.vec_env.util import (copy_obs_dict, dict_to_obs,
                                                    obs_space_info)
 
+######################################
+##########--COSTANT VALUES--##########
+######################################
+
 FLIGHTMAER_EXE = "RPG_Flightmare.x86_64"
 RGB_CHANNELS = 3
 FLIGHTMAER_NEXT_FOLDER = "/flightrender/"
+
+
+######################################
+############--FUNCTIONS--#############
+######################################
 
 
 def _unnormalize_obs(obs: np.ndarray, obs_rms: RunningMeanStd) -> np.ndarray:
@@ -170,13 +179,18 @@ class FlightEnvVec(VecEnv, ABC):
             ports = ""
         os.system(os.environ["FLIGHTMARE_PATH"] + FLIGHTMAER_NEXT_FOLDER + FLIGHTMAER_EXE + ports + "&")
 
-    def change_obstacles(self, seed=0):
+    def change_obstacles(self, seed=0, difficult="medium", level=0, random=False):
+        # TODO Random not yet implemented
+
         self.disconnectUnity()
         for proc in psutil.process_iter():
             if proc.name() == FLIGHTMAER_EXE:
                 proc.kill()
 
         self.spawn_flightmare()
+
+        self.env_cfg["environment"]["level"] = difficult
+        self.env_cfg["environment"]["env_folder"] = "environment_" + str(level)
 
         self.wrapper = VisionEnv_v1(dump(self.env_cfg, Dumper=RoundTripDumper), False)
         self.seed(seed)
