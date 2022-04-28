@@ -222,28 +222,38 @@ class FlightEnvVec(VecEnv, ABC):
 
         new_obs = self.getObs()
         for i in range(self.num_envs):
-            x = self._quadstate[i][0]  # new state
-            y = self._quadstate[i][1]
-            z = self._quadstate[i][2]
+            x = self.goalPos[i][0] - self._quadstate[i][0]  # new state
+            y = self.goalPos[i][1] - self._quadstate[i][1]
+            z = self.goalPos[i][2] - self._quadstate[i][2]
             distance = math.sqrt(x * x + y * y + z * z)  # new distance
             if self._done[i]:
                 self.myReward[i] = -1.0
+                self.totalReward[i] += self.myReward[i]
                 info[i]["episode"] = {"reward": self.totalReward[i]}
                 self.totalsteps[i] = 0
                 self.totalReward[i] = 0
                 self.maxDistanceReached[i] = 0
-            elif distance > self.maxDistanceReached[i]:
-                step = distance - self.maxDistanceReached[i]  # new step
-                self.maxDistanceReached[i] = distance
-                self.totalsteps[i] += 1
-                for j in range(3):  # inizialize
-                    self.maxPos[i][j] = self._quadstate[i][j]
+            elif distance < self.maxDistanceReached[i]:
+                if (distance / self.distanceMaximus[i]) < 0.005:
+                    self._done[i] = True
+                    self.myReward[i] = 500.0/self.totalsteps
+                    self.totalReward[i] += self.myReward[i]
+                    info[i]["episode"] = {"reward": self.totalReward[i]}
+                    self.totalsteps[i] = 0
+                    self.totalReward[i] = 0
+                    self.maxDistanceReached[i] = 0
+                else :
+                    step = self.maxDistanceReached[i] - distance  # new step
+                    self.maxDistanceReached[i] = distance
+                    self.totalsteps[i] += 1
+                    for j in range(3):  # inizialize
+                        self.maxPos[i][j] = self._quadstate[i][j]
 
-                drim = self.distanceMaximus[i] - self.maxDistanceReached[i]  # distance left
-                self.myReward[i] = ((self.distanceMaximus[i] * self.distanceMaximus[i]
-                                     - (distance * distance) + (self.distanceMaximus[i] * step) - (
-                                                 drim / 2) * self.totalsteps[i]) / (self.distanceMaximus[i] * self.distanceMaximus[i]))
-                self.totalReward[i] += self.myReward[i]
+                    drim = self.distanceMaximus[i] - self.maxDistanceReached[i]  # distance left
+                    self.myReward[i] = ((self.distanceMaximus[i] * self.distanceMaximus[i]
+                                         - (distance * distance) + (self.distanceMaximus[i] * step) - (
+                                         drim / 2) * self.totalsteps[i]) / (self.distanceMaximus[i] * self.distanceMaximus[i]))
+                    self.totalReward[i] += self.myReward[i]
             info[i] = {"reward": self.myReward[i]}
         return (
             new_obs,
@@ -281,7 +291,7 @@ class FlightEnvVec(VecEnv, ABC):
             y = self.goalPos[i][1] - self.maxPos[i][1]
             z = self.goalPos[i][2] - self.maxPos[i][2]
             self.distanceMaximus[i] = math.sqrt(x * x + y * y + z * z)
-
+            self.maxDistanceReached = self.distanceMaximus
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
         new_obs = self.getObs()
