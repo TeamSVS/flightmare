@@ -87,8 +87,8 @@ bool UnityBridge::connectUnity(const SceneID scene_id) {
 bool UnityBridge::disconnectUnity() {
   unity_ready_ = false;
   // create new message object
-  pub_.close();
-  sub_.close();
+  // pub_.close();
+  // sub_.close();
   return true;
 }
 
