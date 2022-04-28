@@ -1,6 +1,6 @@
 environment:
-  level: "easy" # three difficulty level [easy, medium, hard]
-  env_folder: "environment_0" # configurations for dynamic and static obstacles
+  level: "medium" # three difficulty level [easy, medium, hard]
+  env_folder: "environment_55" # configurations for dynamic and static obstacles
   world_box: [ -20, 80, -10, 10, 0.0, 10 ] # Bounding box applied during training, exiting this box terminates the episode. [xmin, xmax, ymin, ymax, zmin, zmax]
   goal_vel: [ 3.0, 0.0, 0.0 ] # goal velicty for tracking vx, vy, vz
   max_detection_range: 10.0 # max obstacle detection range [m], obstacles outside this range will not be detected. The number of obstacles detected is fixed to 10, if less than 10 obstacles are within detectable range, the observation is padded with 10.0
@@ -24,10 +24,15 @@ rgb_camera:
   t_BC: [ 0.0, 0.0, 0.3 ] # translational vector of the camera with repect to the body frame
   r_BC: [ 0.0, 0.0, -90 ] # rotational angle (roll, pitch, yaw) of the camera in degree.
   channels: 3
+<<<<<<< HEAD
 
   width: 10
   height: 10
 
+=======
+  width: 100
+  height: 100
+>>>>>>> develop
   fov: 70.0
   enable_depth: yes
   enable_segmentation: no
@@ -35,7 +40,7 @@ rgb_camera:
 
 unity:
   scene_id: 0 # 0 warehouse, 1 street, 2 forest, 3 wasteland
-  render: no
+  render: yes
   input_port: 10253
   output_port: 10254
 
