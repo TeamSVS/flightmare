@@ -46,7 +46,9 @@ simulation:
   sim_dt: 0.02
   max_t: 20.0
   num_envs: 2
-  num_threads: 20
+  num_threads: 10
+  heartbeat: yes
+  fakeQuadrotorScaleSize: 0.0001
 
 quadrotor_dynamics:
   mass: 0.752

@@ -489,6 +489,12 @@ class FlightEnvVec(VecEnv, ABC):
         self.is_unity_connected = True
         self.wrapper.connectUnity()
 
+    def sendUnityPing(self):
+        self.wrapper.sendUnityPing()
+
+    def setFakeQuadrotorScale(self, scale=1.0):
+        self.wrapper.setFakeQuadrotorScale(1.0)
+
     def disconnectUnity(self):
         self.is_unity_connected = False
         self.wrapper.disconnectUnity()
