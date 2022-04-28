@@ -4,7 +4,7 @@ import threading
 from abc import ABC
 from copy import deepcopy
 from typing import Any, Callable, List, Optional, Sequence, Type, Union
-
+import json
 import psutil
 import torch
 import torchvision.transforms as transforms
@@ -84,6 +84,11 @@ class FlightEnvVec(VecEnv, ABC):
                                10: [-30, 30],
                                11: [-10, 10],
                                12: [-10, 10]}
+
+        if os.path.exists("NEW_VAL_NORMALIZATION.txt"):
+            with open('NEW_VAL_NORMALIZATION.txt') as json_file:
+                self.obs_ranges_dic = json.load(json_file)
+
         self.act_dim = self.wrapper.getActDim()
         self.obs_dim = self.wrapper.getObsDim()  # C++ obs shape
         self.rew_dim = self.wrapper.getRewDim()
@@ -202,7 +207,10 @@ class FlightEnvVec(VecEnv, ABC):
         self.env_cfg["environment"]["env_folder"] = "environment_" + str(level)
 
         self.wrapper = VisionEnv_v1(dump(self.env_cfg, Dumper=RoundTripDumper), False)
-        self.seed(seed)
+        if seed != 0:
+            self.seed_val = seed
+
+        self.seed(self.seed_val)
         # Require render cfg to be True
         self.connectUnity()
         self.reset(True)
@@ -317,7 +325,7 @@ class FlightEnvVec(VecEnv, ABC):
         # normalize between -1 and 1
         for key in self.obs_ranges_dic:
             # extract values
-            value = drone_state[:, key]
+            value = drone_state[:, int(key)]
             lower_bound = self.obs_ranges_dic[key][0]
             upper_bound = self.obs_ranges_dic[key][1]
             # compute normalization
@@ -326,25 +334,24 @@ class FlightEnvVec(VecEnv, ABC):
             changed_range = False
             if new_val.max() > 1:
                 # update upper bound
-                self.obs_ranges_dic[key][1] = value
+                self.obs_ranges_dic[key][1] = value.max()
                 changed_range = True
                 # update normalization based on new range
                 new_val = 2 * (value - lower_bound) / (upper_bound - lower_bound) - 1
 
             if new_val.min() < -1:
                 # update lower bound
-                self.obs_ranges_dic[key][0] = value
+                self.obs_ranges_dic[key][0] = value.min()
                 changed_range = True
                 # update normalization based on new range
                 new_val = 2 * (value - lower_bound) / (upper_bound - lower_bound) - 1
-            drone_state[:, key] = new_val
+            drone_state[:, int(key)] = new_val
 
             if changed_range:
                 logging.info("state out of normalization range. Range updated from {0} to {1}".format(
                     old_range, self.obs_ranges_dic[key]))
-                with open("NEW_VAL_NORMALIZATION.txt", "a") as myfile:
-                    myfile.write("state out of normalization range. Range updated from {0} to {1}".format(
-                        old_range, self.obs_ranges_dic[key]))
+                with open("NEW_VAL_NORMALIZATION.txt", "w") as myfile:
+                    myfile.write(json.dumps(self.obs_ranges_dic))
 
         if self.mode == "depth":
             depth = np.reshape(self.getDepthImage(), (self.num_envs, 1, self.img_width, self.img_height))
