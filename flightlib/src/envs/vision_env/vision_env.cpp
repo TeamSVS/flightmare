@@ -329,7 +329,10 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
         dist_reward + collision_penalty + lin_vel_reward + ang_vel_penalty + survive_rew_;
     //lin_vel_reward + collision_penalty + ang_vel_penalty + survive_rew_;
     
-  logger_.info(to_string(    total_reward    ));
+  string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty) + "  " +
+     to_string(lin_vel_reward) + "  " + to_string(ang_vel_penalty) + "  " + to_string(total_reward);
+  logger_.info(str);
+
     // return all reward components for debug purposes
     reward << dist_reward, collision_penalty, lin_vel_reward, ang_vel_penalty, survive_rew_, total_reward;
   return true;
@@ -339,8 +342,8 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
 
 
 //for this competitio, only evaluate x position
-if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 0.1){
-  reward = 3.0;
+if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 10){
+  reward = 10.0;
   std::cout << "reached target position!\n";
   return true;
 }
@@ -354,7 +357,7 @@ if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 0.1){
 
  //simulation time out
  if (cmd_.t >= max_t_ - sim_dt_) {
-   reward = 0.0;
+   reward = -1000;
    std::cout << "Timeout!\n";
    return true;
  }
