@@ -156,6 +156,7 @@ bool UnityBridge::disconnectUnity() {
 
 void UnityBridge::sendPing(void) {
   zmqpp::message msg;
+  logger_.warn("Funziona c++");
   msg << "PointCloud";
   pub_.send(msg, true);
   return;
