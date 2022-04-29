@@ -101,6 +101,9 @@ class FlightEnv(object):
     def connectUnity(self):
         self.wrapper.connectUnity()
 
+    def sendUnityPing(self):
+        self.wrapper.sendUnityPing()
+
     def disconnectUnity(self):
         self.wrapper.disconnectUnity()
 

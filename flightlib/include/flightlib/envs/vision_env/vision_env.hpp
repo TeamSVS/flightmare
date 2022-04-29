@@ -72,6 +72,8 @@ class VisionEnv final : public EnvBase {
   bool getQuadAct(Ref<Vector<>> act) const;
   bool getQuadState(Ref<Vector<>> state) const;
 
+  void setFakeQuadrotorScale(float scale);
+
   // - auxiliar functions
   bool isTerminalState(Scalar &reward) override;
   bool addQuadrotorToUnity(const std::shared_ptr<UnityBridge> bridge) override;
@@ -120,6 +122,7 @@ class VisionEnv final : public EnvBase {
   std::vector<std::shared_ptr<UnityObject>> dynamic_objects_;
 
   QuadState quad_state_, quad_old_state_;
+  int quadrotorScale_;
   Command cmd_;
   Logger logger_{"VisionEnv"};
 
