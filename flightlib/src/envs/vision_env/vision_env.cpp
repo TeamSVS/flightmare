@@ -106,6 +106,7 @@ bool VisionEnv::reset(Ref<Vector<>> obs) {
   quad_state_.x(QS::POSZ) = uniform_dist_(random_gen_) * 4 + 5.0;
 
   max_dist_ = goal_pos_ - quad_state_.p;
+  num_collision = 0;
 
 //  std::cout << "Reset!\n";
 //  std::cout << "Starting Drone X:" << quad_state_.p(QS::POSX) << "\n";
@@ -336,10 +337,11 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
         (dist_reward + collision_penalty + ang_vel_penalty + survive_rew_) * time_percentage;
     //lin_vel_reward + collision_penalty + ang_vel_penalty + survive_rew_;
     
-  string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty) + "  " +
+  string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty)
+                  + "  " + to_string(num_collision) + "  " +
     to_string(time_percentage) + "  " + to_string(ang_vel_penalty) + "  " + to_string(total_reward);
   logger_.info(str);
-  //logger_.info(to_string(( total_reward )));
+  //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
 
     // return all reward components for debug purposes
     reward << dist_reward, collision_penalty,  ang_vel_penalty, survive_rew_, total_reward;
@@ -348,13 +350,16 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
 
 bool VisionEnv::isTerminalState(Scalar &reward) {
 
-
+ Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
+ Scalar collisionPercentage = (num_dynamic_objects_ + num_static_objects_ - num_collision) 
+                                / (num_dynamic_objects_ + num_static_objects_);
   //collsion
-  //if (is_collision_) {
+  if (is_collision_) {
       //reward = -1.0;
       //std::cout << "Collision!\n";
       //return true;
-  //}
+      num_collision++;
+  }
 
  //simulation time out
  if (cmd_.t >= max_t_ - sim_dt_) {
@@ -402,11 +407,10 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
 //for this competitio, only evaluate x position
 if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 10){
   reward = 100.0;
+  reward = reward * time_percentage * sqrt(collisionPercentage);
   std::cout << "reached target position!\n";
   return true;
 }
-
-
 
   return false;
 }

@@ -1,5 +1,5 @@
 environment:
-  level: "easy" # three difficulty level [easy, medium, hard]
+  level: "hard" # three difficulty level [easy, medium, hard]
   env_folder: "environment_0" # configurations for dynamic and static obstacles
   world_box: [ -20, 80, -10, 10, 0.0, 10 ] # Bounding box applied during training, exiting this box terminates the episode. [xmin, xmax, ymin, ymax, zmin, zmax]
   goal_vel: [ 3.0, 0.0, 0.0 ] # goal velicty for tracking vx, vy, vz
@@ -8,7 +8,7 @@ environment:
 
 rewards:
   vel_coeff: -0.01
-  collision_coeff: -0.01   #-0.01
+  collision_coeff: -0.03   #-0.01
   angular_vel_coeff: -0.0001 #-0.0001
   survive_rew: 0.02   #0.03
   goal_dist_rew: 0.09 #0.09
