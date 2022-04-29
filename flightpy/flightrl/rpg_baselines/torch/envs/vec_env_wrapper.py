@@ -219,17 +219,9 @@ class FlightEnvVec(VecEnv, ABC):
         self.obs_rms = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
         self.obs_rms_new = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
 
-
-        self.max_episode_steps = 1000
-        # VecEnv.__init__(self, self.num_envs,
-        #                 self._observation_space, self._action_space)
-
-        self.is_unity_connected = False
-        self.maxPosX = np.zeros([self.num_envs], dtype=np.float64)
+        self.maxPos = np.zeros([self.num_envs], dtype=np.float64)
         self.myReward = np.zeros([self.num_envs], dtype=np.float64)
         self.totalReward = np.zeros([self.num_envs], dtype=np.float64)
-
-
 
     def seed(self, seed=0):
         if seed != 0:
@@ -305,6 +297,11 @@ class FlightEnvVec(VecEnv, ABC):
         self.obs_rms_new.update(self._observation)
         obs = self.normalize_obs(self._observation)
 
+        logging.info("." + self.name)
+        if self.is_unity_connected:
+            self.render_id = self.render(
+                self.render_id)  # TODO INCREASE RENDER ID IT IS REALLY NECESSARY TO DO RENDER ID +1
+
         if len(self._extraInfoNames) != 0:
             info = [
                 {
@@ -317,37 +314,20 @@ class FlightEnvVec(VecEnv, ABC):
             ]
         else:
             info = [{} for i in range(self.num_envs)]
+        logging.info(self.getImage(True))
 
-        for i in range(self.num_envs):
-            self.rewards[i].append(self._reward_components[i, -1])
-            for j in range(self.wrapper.getRewDim() - 1):
-                self.sum_reward_components[i, j] += self._reward_components[i, j]
-            if self._done[i]:
-                eprew = self.myReward[i]
-                eplen = len(self.rewards[i])
-                epinfo = {"r": eprew, "l": eplen}
-                for j in range(self.wrapper.getRewDim() - 1):
-                    epinfo[self.reward_names[j]] = self.sum_reward_components[i, j]
-                    self.sum_reward_components[i, j] = 0.0
-                info[i]["episode"] = epinfo
-                self.rewards[i].clear()
-
-        logging.info("." + self.name)
-        if self.is_unity_connected:
-            self.render_id = self.render(
-                self.render_id)  # TODO INCREASE RENDER ID IT IS REALLY NECESSARY TO DO RENDER ID +1
-            logging.info(self.getImage(True))
         new_obs = self.getObs()
         for i in range(self.num_envs):
             if self._done[i]:
-                self.myReward[i] =-1.0;
-                self.maxPosX[i]=0;
-                self.totalReward =0
-            elif self._quadstate[i][1] > self.maxPosX[i]:
-                self.myReward[i] = self._quadstate[i][1] - self.maxPosX[i]
-                self.maxPosX[i] = self._quadstate[i][1]
-                self.totalReward+=self.myReward[i]
+                self.myReward[i] = -10.0
+                self.totalReward[i] += self.myReward[i]
+                info[i]["episode"] = {"reward": self.totalReward[i]}
 
+            else:
+                self.myReward[i] = self._quadstate[i][0] - self.maxPos[i]
+                if self._quadstate[i][0] > self.maxPos[i]:
+                    self.maxPos[i] = self._quadstate[i][0]
+            info[i] = {"reward": self.myReward[i]}
         return (
             new_obs,
             self.myReward[:].copy(),  # add our reward
@@ -372,9 +352,14 @@ class FlightEnvVec(VecEnv, ABC):
         #
         self.obs_rms_new.update(self._observation)
         obs = self.normalize_obs(self._observation)
+
         if self.num_envs == 1:
-            return _normalize_img(np.reshape(self.getImage(True),
-                                             (self.num_envs, RGB_CHANNELS, self.img_width, self.img_height)))[0]
+            return _normalize_img(
+                np.reshape(self.getImage(True), (self.num_envs, RGB_CHANNELS, self.img_width, self.img_height)))[0]
+        for i in range(self.num_envs):
+            for j in range(3):  # inizialize
+                self.maxPos[i] = obs[i][j]
+                self.totalReward[i] = 0
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
         new_obs = self.getObs()
