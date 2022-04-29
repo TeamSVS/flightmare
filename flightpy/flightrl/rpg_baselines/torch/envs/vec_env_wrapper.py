@@ -32,7 +32,9 @@ from stable_baselines3.common.vec_env.util import (copy_obs_dict, dict_to_obs,
 
 FLIGHTMAER_EXE = "RPG_Flightmare.x86_64"
 RGB_CHANNELS = 3
+HEARTBEAT_INTERVAL = 4
 FLIGHTMAER_NEXT_FOLDER = "/flightrender/"
+ALLOWED_USER_KILLER = ["giuseppe", "cam", "sara", "zaks", "students"]
 
 
 ######################################
@@ -77,7 +79,7 @@ class PingThread(Thread):
     def run(self):
         while True:
             time.sleep(2)
-            while not self.stopped.wait(1):
+            while not self.stopped.wait(HEARTBEAT_INTERVAL):
                 self.env.wrapper.sendUnityPing()
 
     #######################################
@@ -232,9 +234,10 @@ class FlightEnvVec(VecEnv, ABC):
         self.close()
         for proc in psutil.process_iter():
             if proc.name() == FLIGHTMAER_EXE:
-                if proc.name() == "RPG_Flightmare.x86_64":
-                    if proc.username() == os.environ.get("USERNAME"):
-                        proc.kill()
+                # if proc.username() == os.environ.get("USERNAME"):
+                if psutil.Process(proc.pid).username() in ALLOWED_USER_KILLER:
+                    print("KILLED")
+                    proc.kill()
 
         # time.sleep(10) #is this usefull?
         self.spawn_flightmare()
