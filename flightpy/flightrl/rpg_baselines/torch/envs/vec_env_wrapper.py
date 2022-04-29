@@ -2,19 +2,24 @@ import logging
 import os
 import pickle
 import threading
+import time
 from abc import ABC
 from copy import deepcopy
 from typing import Any, Callable, List, Optional, Sequence, Type, Union
-
+import json
+import psutil
 import torch
 import torchvision.transforms as transforms
 import random
 
-import math
+from threading import Timer, Thread, Event
+
 import logging
 import gym
 import numpy as np
+from flightgym import VisionEnv_v1
 from gym import spaces
+from ruamel.yaml import RoundTripDumper, YAML, dump
 from numpy.core.fromnumeric import shape
 from stable_baselines3.common.running_mean_std import RunningMeanStd
 from stable_baselines3.common.vec_env.base_vec_env import (VecEnv,
@@ -23,6 +28,21 @@ from stable_baselines3.common.vec_env.base_vec_env import (VecEnv,
                                                            VecEnvStepReturn)
 from stable_baselines3.common.vec_env.util import (copy_obs_dict, dict_to_obs,
                                                    obs_space_info)
+
+######################################
+##########--COSTANT VALUES--##########
+######################################
+
+FLIGHTMAER_EXE = "RPG_Flightmare.x86_64"
+RGB_CHANNELS = 3
+HEARTBEAT_INTERVAL = 4
+FLIGHTMAER_NEXT_FOLDER = "/flightrender/"
+ALLOWED_USER_KILLER = ["giuseppe", "cam", "sara", "zaks", "students"]
+
+
+######################################
+############--FUNCTIONS--#############
+######################################
 
 
 def _unnormalize_obs(obs: np.ndarray, obs_rms: RunningMeanStd) -> np.ndarray:
@@ -48,20 +68,57 @@ def _normalize_obs(obs: np.ndarray, obs_rms: RunningMeanStd) -> np.ndarray:
 def _normalize_img(obs: np.ndarray) -> np.ndarray:
     return obs / 255
 
+    ############################################
+    ############--HB-DEAMON-CLASS--#############
+    ############################################
+
+
+class PingThread(Thread):
+    def __init__(self, event, vecEnv):
+        Thread.__init__(self)
+        self.stopped = event
+        self.env = vecEnv
+
+    def run(self):
+        while True:
+            time.sleep(2)
+            while not self.stopped.wait(HEARTBEAT_INTERVAL):
+                self.env.wrapper.sendUnityPing()
+
+    #######################################
+    ############--MAIN-CLASS--#############
+    #######################################
+
 
 class FlightEnvVec(VecEnv, ABC):
-    def __init__(self, impl, name, mode):
+    def __init__(self, env_cfg, name, mode):
         self.render_id = 0
         self.name = name
-        self.sem = threading.Semaphore()
-        self.wrapper = impl
+        self.env_cfg = env_cfg
+        self.stopFlag = Event()
+        self.thread = PingThread(self.stopFlag, self)
+        self.wrapper = VisionEnv_v1(dump(self.env_cfg, Dumper=RoundTripDumper), False)
         self.is_unity_connected = False
         self.var = None
         self.mean = None
         self.envs = None
         self._reward = None
-        self.rgb_channel = 3  # rgb channel
         self.mode = mode  # rgb, depth, both
+        self.seed_val = 0
+        self._heartbeat = True if env_cfg["simulation"]["heartbeat"] == "yes" else False
+        self.obs_ranges_dic = {0: [0, 10],
+                               1: [-20, 80],
+                               2: [-10, 10],
+                               3: [0, 10],
+                               8: [-35, 50],
+                               9: [-35, 50],
+                               10: [-30, 30],
+                               11: [-10, 10],
+                               12: [-10, 10]}
+
+        if os.path.exists("NEW_VAL_NORMALIZATION.txt"):
+            with open('NEW_VAL_NORMALIZATION.txt') as json_file:
+                self.obs_ranges_dic = json.load(json_file)
 
         self.act_dim = self.wrapper.getActDim()
         self.obs_dim = self.wrapper.getObsDim()  # C++ obs shape
@@ -70,7 +127,16 @@ class FlightEnvVec(VecEnv, ABC):
         self.img_width = self.wrapper.getImgWidth()
         self.img_height = self.wrapper.getImgHeight()
 
-        ###--OBS-SPACE--###
+        ###########################################
+        ##############--HB-DEAMON---###############
+        ###########################################
+        if self._heartbeat:
+            self.thread.daemon = True
+            self.thread.start()
+
+        ###########################################
+        ###############--OBS-SPACE--###############
+        ###########################################
 
         depth_space = spaces.Box(
             low=0., high=1.,
@@ -83,7 +149,7 @@ class FlightEnvVec(VecEnv, ABC):
 
         rgb_space = spaces.Box(
             low=0., high=1.,
-            shape=(self.rgb_channel, self.img_width, self.img_height), dtype=np.float64
+            shape=(RGB_CHANNELS, self.img_width, self.img_height), dtype=np.float64
         )
 
         if mode == "rgb":
@@ -109,7 +175,9 @@ class FlightEnvVec(VecEnv, ABC):
                     "state": drone_state_space
                 }
             )
-
+        ###########################################
+        ###############--ACT-SPACE--###############
+        ###########################################
         self._action_space = spaces.Box(
             low=np.ones(self.act_dim) * -1.0,
             high=np.ones(self.act_dim) * 1.0,
@@ -119,7 +187,7 @@ class FlightEnvVec(VecEnv, ABC):
         self._observation = np.zeros([self.num_envs, self.obs_dim], dtype=np.float64)
 
         self._rgb_img_obs = np.zeros(
-            [self.num_envs, self.img_width * self.img_height * self.rgb_channel], dtype=np.uint8
+            [self.num_envs, self.img_width * self.img_height * RGB_CHANNELS], dtype=np.uint8
         )
         self._gray_img_obs = np.zeros(
             [self.num_envs, self.img_width * self.img_height], dtype=np.uint8
@@ -151,6 +219,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.obs_rms = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
         self.obs_rms_new = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
 
+
         self.max_episode_steps = 1000
         # VecEnv.__init__(self, self.num_envs,
         #                 self._observation_space, self._action_space)
@@ -161,8 +230,46 @@ class FlightEnvVec(VecEnv, ABC):
         self.totalReward = np.zeros([self.num_envs], dtype=np.float64)
 
 
+
     def seed(self, seed=0):
-        self.wrapper.setSeed(seed)
+        if seed != 0:
+            self.seed_val = seed
+
+        self.wrapper.setSeed(self.seed_val)
+
+    def spawn_flightmare(self, input_port=0, output_port=0):
+        if input_port > 0 and output_port > 0:
+            ports = " -input-port {0} -output-port {1}".format(input_port, output_port)
+        else:
+            ports = ""
+        os.system(os.environ["FLIGHTMARE_PATH"] + FLIGHTMAER_NEXT_FOLDER + FLIGHTMAER_EXE + ports + "&")
+
+    def change_obstacles(self, seed=0, difficult="medium", level=0, random=False):
+        # TODO Random not yet implemented
+
+        self.close()
+        for proc in psutil.process_iter():
+            if proc.name() == FLIGHTMAER_EXE:
+                # if proc.username() == os.environ.get("USERNAME"):
+                if psutil.Process(proc.pid).username() in ALLOWED_USER_KILLER:
+                    print("KILLED")
+                    proc.kill()
+
+        # time.sleep(10) #is this usefull?
+        self.spawn_flightmare()
+
+        self.env_cfg["environment"]["level"] = difficult
+        self.env_cfg["environment"]["env_folder"] = "environment_" + str(level)
+
+        self.wrapper = VisionEnv_v1(dump(self.env_cfg, Dumper=RoundTripDumper), False)
+        if seed != 0:
+            self.seed_val = seed
+
+        self.stopFlag.clear()
+        self.seed(self.seed_val)
+        # Require render cfg to be True
+        self.connectUnity()
+        self.reset(True)
 
     def update_rms(self):
         self.obs_rms = self.obs_rms_new
@@ -227,9 +334,9 @@ class FlightEnvVec(VecEnv, ABC):
 
         logging.info("." + self.name)
         if self.is_unity_connected:
-            self.render_id = self.render(self.render_id)
+            self.render_id = self.render(
+                self.render_id)  # TODO INCREASE RENDER ID IT IS REALLY NECESSARY TO DO RENDER ID +1
             logging.info(self.getImage(True))
-
         new_obs = self.getObs()
         for i in range(self.num_envs):
             if self._done[i]:
@@ -267,7 +374,7 @@ class FlightEnvVec(VecEnv, ABC):
         obs = self.normalize_obs(self._observation)
         if self.num_envs == 1:
             return _normalize_img(np.reshape(self.getImage(True),
-                                             (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))[0]
+                                             (self.num_envs, RGB_CHANNELS, self.img_width, self.img_height)))[0]
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
         new_obs = self.getObs()
@@ -282,29 +389,46 @@ class FlightEnvVec(VecEnv, ABC):
         # position (z, x, y) = [0:3], attitude=[3:7], linear_velocity=[7:10], angular_velocity=[10:13]
         drone_state = self.getQuadState()[:, :13].copy()
         # normalize between -1 and 1
-        drone_state[:, 0] = 2 * drone_state[:, 0] / 10 - 1
-        drone_state[:, 1] = 2 * (drone_state[:, 1] - (-20)) / (80 - (-20)) - 1
-        drone_state[:, 2] = 2 * (drone_state[:, 2] - (-10)) / (10 - (-10)) - 1
-        drone_state[:, 3] = 2 * drone_state[:, 3] / 10 - 1
-        drone_state[:, 8] = 2 * (drone_state[:, 8] - (-35)) / (50 - (-35)) - 1
-        drone_state[:, 9] = 2 * (drone_state[:, 9] - (-35)) / (50 - (-35)) - 1
-        drone_state[:, 10] = 2 * (drone_state[:, 10] - (-30)) / (30 - (-30)) - 1
-        drone_state[:, 11] = 2 * (drone_state[:, 11] - (-10)) / (10 - (-10)) - 1
-        drone_state[:, 12] = 2 * (drone_state[:, 12] - (-10)) / (10 - (-10)) - 1
+        for key in self.obs_ranges_dic:
+            # extract values
+            value = drone_state[:, int(key)]
+            lower_bound = self.obs_ranges_dic[key][0]
+            upper_bound = self.obs_ranges_dic[key][1]
+            # compute normalization
+            new_val = 2 * (value - lower_bound) / (upper_bound - lower_bound) - 1
+            old_range = self.obs_ranges_dic[key]
+            changed_range = False
+            if new_val.max() > 1:
+                # update upper bound
+                self.obs_ranges_dic[key][1] = value.max()
+                changed_range = True
+                # update normalization based on new range
+                new_val = 2 * (value - lower_bound) / (upper_bound - lower_bound) - 1
 
-        if drone_state.max() > 1 or drone_state.min() < -1:
-            logging.error("drone state out of normalization range: {}".format(self._quadstate[:, :13]))
+            if new_val.min() < -1:
+                # update lower bound
+                self.obs_ranges_dic[key][0] = value.min()
+                changed_range = True
+                # update normalization based on new range
+                new_val = 2 * (value - lower_bound) / (upper_bound - lower_bound) - 1
+            drone_state[:, int(key)] = new_val
+
+            if changed_range:
+                logging.info("state out of normalization range. Range updated from {0} to {1}".format(
+                    old_range, self.obs_ranges_dic[key]))
+                with open("NEW_VAL_NORMALIZATION.txt", "w") as myfile:
+                    myfile.write(json.dumps(self.obs_ranges_dic))
 
         if self.mode == "depth":
             depth = np.reshape(self.getDepthImage(), (self.num_envs, 1, self.img_width, self.img_height))
             new_obs = {"depth": depth.copy(), "state": drone_state}
         elif self.mode == "rgb":
             rgb = _normalize_img(
-                np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
+                np.reshape(self.getImage(True), (self.num_envs, RGB_CHANNELS, self.img_width, self.img_height)))
             new_obs = {"rgb": rgb.copy(), "state": drone_state}
         else:
             rgb = _normalize_img(
-                np.reshape(self.getImage(True), (self.num_envs, self.rgb_channel, self.img_width, self.img_height)))
+                np.reshape(self.getImage(True), (self.num_envs, RGB_CHANNELS, self.img_width, self.img_height)))
             depth = np.reshape(self.getDepthImage(), (self.num_envs, 1, self.img_width, self.img_height))
             new_obs = {"rgb": rgb.copy(), "depth": depth.copy(), "state": drone_state}
         return new_obs.copy()
@@ -377,17 +501,24 @@ class FlightEnvVec(VecEnv, ABC):
         return info
 
     def render(self, frame_id=0):
-        self.sem.acquire()
         ret = self.wrapper.updateUnity(frame_id)
-        self.sem.release()
         return ret
 
     def close(self):
+        self.stopFlag.set()
+        self.reset()
+        self.disconnectUnity()
         self.wrapper.close()
 
     def connectUnity(self):
         self.is_unity_connected = True
         self.wrapper.connectUnity()
+
+    def sendUnityPing(self):
+        self.wrapper.sendUnityPing()
+
+    def setFakeQuadrotorScale(self, scale=1.0):
+        self.wrapper.setFakeQuadrotorScale(1.0)
 
     def disconnectUnity(self):
         self.is_unity_connected = False
@@ -480,8 +611,9 @@ class FlightEnvVec(VecEnv, ABC):
         self.obs_rms.mean = np.mean(self.mean, axis=0)
         self.obs_rms.var = np.mean(self.var, axis=0)
 
-    ###############################################--NOT IMPLEMENTED METHODS--#######################################
-
+    #########################################################################################################
+    #######################################--NOT IMPLEMENTED METHODS--#######################################
+    #########################################################################################################
     def env_is_wrapped(
             self, wrapper_class: Type[gym.Wrapper], indices: VecEnvIndices = None
     ) -> List[bool]:

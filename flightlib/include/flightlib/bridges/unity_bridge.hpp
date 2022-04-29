@@ -58,7 +58,10 @@ class UnityBridge {
   bool setScene(const SceneID &scene_id);
   bool setObjectCSV(const std::string &csv_file);
 
+  void sendPing(void);
+
   // add object
+  bool addQuadrotor(std::shared_ptr<Quadrotor> quad, int fakeSizeScale);
   bool addQuadrotor(std::shared_ptr<Quadrotor> quad);
   bool addCamera(std::shared_ptr<UnityCamera> unity_camera);
   bool addStaticObject(std::shared_ptr<UnityObject> unity_object);
@@ -70,13 +73,10 @@ class UnityBridge {
   inline void setSubPort(const std::string &sub_port) { sub_port_ = sub_port; };
 
   // create unity bridge
-  static std::shared_ptr<UnityBridge> getInstance(int input_port, int output_port) {
-  static std::shared_ptr<UnityBridge> bridge_ptr;
-    if(bridge_ptr != NULL){
-        bridge_ptr->setPubPort(to_string(input_port));
-        bridge_ptr->setSubPort(to_string(output_port));
-    }
-     bridge_ptr = std::make_shared<UnityBridge>(input_port, output_port);
+  static std::shared_ptr<UnityBridge> getInstance(int input_port,
+                                                  int output_port) {
+    std::shared_ptr<UnityBridge> bridge_ptr;
+    bridge_ptr = std::make_shared<UnityBridge>(input_port, output_port);
 
     return bridge_ptr;
   };
@@ -117,8 +117,8 @@ class UnityBridge {
   int64_t u_packet_latency_;
 
   // axuiliary variables
-  const int max_output_request_{100};
-  const Scalar unity_connection_time_out_{10.0};
+  const int max_output_request_{10000};
+  const Scalar unity_connection_time_out_{100.0};
   bool unity_ready_{false};
 };
 

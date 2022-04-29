@@ -19,6 +19,7 @@ void VecEnvBase<EnvBaseName>::configEnv(const YAML::Node& cfg_node) {
     seed_ = 0;
     num_envs_ = 1;
     num_threads_ = 1;
+    fakeQuadrotorScale_ = 1.0;
     scene_id_ = 0;
   } else {
     //
@@ -33,6 +34,7 @@ void VecEnvBase<EnvBaseName>::configEnv(const YAML::Node& cfg_node) {
     seed_ = cfg_node["simulation"]["seed"].as<int>();
     num_envs_ = cfg_node["simulation"]["num_envs"].as<int>();
     num_threads_ = cfg_node["simulation"]["num_threads"].as<int>();
+    fakeQuadrotorScale_ = cfg_node["simulation"]["fakeQuadrotorScaleSize"].as<float>();
 
     
   }
@@ -147,6 +149,11 @@ void VecEnvBase<EnvBaseName>::setSeed(const int seed) {
 }
 
 template<typename EnvBaseName>
+void VecEnvBase<EnvBaseName>::setFakeQuadrotorScale(const float scale) {
+  int fakeQuadrotorScale_ = scale;
+}
+
+template<typename EnvBaseName>
 bool VecEnvBase<EnvBaseName>::getObs(Ref<MatrixRowMajor<>> obs) {
   bool valid_obs = true;
   for (int i = 0; i < num_envs_; i++) valid_obs &= envs_[i]->getObs(obs.row(i));
@@ -243,7 +250,7 @@ FrameID VecEnvBase<EnvBaseName>::updateUnity(const FrameID frame_id) {
   if (unity_render_ && unity_ready_) {
     bool sent = unity_bridge_ptr_->getRender(frame_id);
     if (!sent) {
-      logger_.error("Message has not been sent successfully!!!!");
+      logger_.error("Message has NOT been sent successfully!");
     }
     return unity_bridge_ptr_->handleOutput(frame_id);
   } else {
@@ -256,6 +263,14 @@ template<typename EnvBaseName>
 void VecEnvBase<EnvBaseName>::isTerminalState(
   Ref<BoolVector<>> terminal_state) {}
 
+template<typename EnvBaseName>
+void VecEnvBase<EnvBaseName>::sendUnityPing(void){
+    if (unity_bridge_ptr_ == nullptr){
+    return;
+  }
+  return unity_bridge_ptr_->sendPing();
+}
+
 
 template<typename EnvBaseName>
 void VecEnvBase<EnvBaseName>::disconnectUnity(void) {
@@ -266,6 +281,8 @@ void VecEnvBase<EnvBaseName>::disconnectUnity(void) {
     logger_.warn("Flightmare Unity Bridge is not initialized.");
   }
 }
+
+
 
 template<typename EnvBaseName>
 void VecEnvBase<EnvBaseName>::curriculumUpdate(void) {

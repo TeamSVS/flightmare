@@ -53,6 +53,8 @@ class VecEnvBase {
   bool setUnity(const bool render);
   bool setUnity(const bool render, const int input_port_, const int output_port_);
   bool connectUnity();
+  void setFakeQuadrotorScale(const float scale);
+  void sendUnityPing();
   void disconnectUnity();
   FrameID updateUnity(const FrameID frame_id);
 
@@ -94,6 +96,7 @@ class VecEnvBase {
 
   // auxiliar variables
   int seed_, num_envs_, obs_dim_, act_dim_, rew_dim_, num_threads_;
+  int fakeQuadrotorScale_;
   int img_width_, img_height_;
   Matrix<> obs_dummy_;
 };

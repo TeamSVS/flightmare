@@ -38,10 +38,72 @@ bool UnityBridge::initializeConnections() {
 
   // create and bind an upload socket
   pub_.set(zmqpp::socket_option::send_high_water_mark, 6);
+  // pub_.set(zmqpp::socket_option::recovery_interval, 10000*5);
+  // pub_.set(zmqpp::socket_option::reconnect_interval_max, 10000*5);
+  // pub_.set(zmqpp::socket_option::receive_timeout, 10000*6);
+  // pub_.set(zmqpp::socket_option::send_timeout, 10000*6);
+  // pub_.set(zmqpp::socket_option::heartbeat_interval, 1000);
+
+
+  int tcp_keepalive, tcp_keepalive_idle, tcp_keepalive_count,
+    tcp_keepalive_interval;
+  int ipv4_only, file_descriptor;
+
+  // pub_.set(zmqpp::socket_option::tcp_keepalive, -1);
+  // pub_.set(zmqpp::socket_option::tcp_keepalive_idle, 1);
+  // pub_.set(zmqpp::socket_option::tcp_keepalive_count, 150);
+  // pub_.set(zmqpp::socket_option::tcp_keepalive_interval, 1);
+
+  // pub_.get(zmqpp::socket_option::tcp_keepalive, tcp_keepalive);
+  // pub_.get(zmqpp::socket_option::tcp_keepalive_idle, tcp_keepalive_idle);
+  // pub_.get(zmqpp::socket_option::tcp_keepalive_count, tcp_keepalive_count);
+  // pub_.get(zmqpp::socket_option::tcp_keepalive_interval,
+  // tcp_keepalive_interval);
+
+  // pub_.get(zmqpp::socket_option::ipv4_only, ipv4_only);
+  // pub_.get(zmqpp::socket_option::file_descriptor, file_descriptor);
+
+  // std::cout << tcp_keepalive <<"\n";
+  // std::cout << tcp_keepalive_idle <<"\n";
+  // std::cout << tcp_keepalive_count <<"\n";
+
+  // std::cout << ipv4_only <<"\n";
+  // std::cout << file_descriptor <<"\n";
+
+  // std::cout << tcp_keepalive_interval <<"\n";
+
   pub_.bind(client_address_ + ":" + pub_port_);
 
   // create and bind a download_socket
   sub_.set(zmqpp::socket_option::receive_high_water_mark, 6);
+  // sub_.set(zmqpp::socket_option::recovery_interval, 10000*6);
+  // sub_.set(zmqpp::socket_option::reconnect_interval_max, 10000*6);
+  // sub_.set(zmqpp::socket_option::receive_timeout, 10000*6);
+  // sub_.set(zmqpp::socket_option::send_timeout, 10000*6);
+  // sub_.set(zmqpp::socket_option::heartbeat_interval, 30000);
+
+  // sub_.set(zmqpp::socket_option::tcp_keepalive, -1);
+  // sub_.set(zmqpp::socket_option::tcp_keepalive_idle, 1);
+  // sub_.set(zmqpp::socket_option::tcp_keepalive_count, 150);
+  // sub_.set(zmqpp::socket_option::tcp_keepalive_interval, 1);
+
+  // sub_.get(zmqpp::socket_option::tcp_keepalive, tcp_keepalive);
+  // sub_.get(zmqpp::socket_option::tcp_keepalive_idle, tcp_keepalive_idle);
+  // sub_.get(zmqpp::socket_option::tcp_keepalive_count, tcp_keepalive_count);
+  // sub_.get(zmqpp::socket_option::tcp_keepalive_interval,
+  // tcp_keepalive_interval);
+
+  // sub_.get(zmqpp::socket_option::ipv4_only, ipv4_only);
+  // sub_.get(zmqpp::socket_option::file_descriptor, file_descriptor);
+
+  // std::cout << tcp_keepalive <<"\n";
+  // std::cout << tcp_keepalive_idle <<"\n";
+  // std::cout << tcp_keepalive_count <<"\n";
+  // std::cout << tcp_keepalive_interval <<"\n";
+
+  // std::cout << ipv4_only <<"\n";
+  // std::cout << file_descriptor <<"\n";
+
   sub_.bind(client_address_ + ":" + sub_port_);
 
   // subscribe all messages from ZMQ
@@ -90,6 +152,13 @@ bool UnityBridge::disconnectUnity() {
   pub_.close();
   sub_.close();
   return true;
+}
+
+void UnityBridge::sendPing(void) {
+  zmqpp::message msg;
+  msg << "PointCloud";
+  pub_.send(msg, true);
+  return;
 }
 
 bool UnityBridge::sendInitialSettings(void) {
@@ -176,6 +245,11 @@ bool UnityBridge::setObjectCSV(const std::string& csv_file) {
 }
 
 bool UnityBridge::addQuadrotor(std::shared_ptr<Quadrotor> quad) {
+  return UnityBridge::addQuadrotor(quad, 1.0);
+}
+
+bool UnityBridge::addQuadrotor(std::shared_ptr<Quadrotor> quad,
+                               int fakeSizeScale) {
   Vehicle_t vehicle_t;
   // get quadrotor state
   QuadState quad_state;
@@ -187,8 +261,8 @@ bool UnityBridge::addQuadrotor(std::shared_ptr<Quadrotor> quad) {
   vehicle_t.ID = "quadrotor" + std::to_string(settings_.vehicles.size());
   vehicle_t.position = positionRos2Unity(quad_state.p);
   vehicle_t.rotation = quaternionRos2Unity(quad_state.q());
-  vehicle_t.size = scalarRos2Unity(quad->getSize() *
-                                   0.001);  // Size of drone inside environment
+  vehicle_t.size = scalarRos2Unity(quad->getSize() * fakeSizeScale);
+
 
   // get camera
   std::vector<std::shared_ptr<RGBCamera>> rgb_cameras = quad->getCameras();
