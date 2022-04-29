@@ -327,7 +327,6 @@ class FlightEnvVec(VecEnv, ABC):
                 self.myReward[i] = self._quadstate[i][0] - self.maxPos[i]
                 if self._quadstate[i][0] > self.maxPos[i]:
                     self.maxPos[i] = self._quadstate[i][0]
-            info[i] = {"reward": self.myReward[i]}
         return (
             new_obs,
             self.myReward[:].copy(),  # add our reward
@@ -358,7 +357,7 @@ class FlightEnvVec(VecEnv, ABC):
                 np.reshape(self.getImage(True), (self.num_envs, RGB_CHANNELS, self.img_width, self.img_height)))[0]
         for i in range(self.num_envs):
             for j in range(3):  # inizialize
-                self.maxPos[i] = obs[i][j]
+                self.maxPos[i] = 0
                 self.totalReward[i] = 0
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
