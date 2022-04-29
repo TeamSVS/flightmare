@@ -319,7 +319,7 @@ class FlightEnvVec(VecEnv, ABC):
         new_obs = self.getObs()
         for i in range(self.num_envs):
             if self._done[i]:
-                self.myReward[i] = -10.0
+                self.myReward[i] = -2.0
                 self.totalReward[i] += self.myReward[i]
                 info[i]["episode"] = {"reward": self.totalReward[i]}
 
