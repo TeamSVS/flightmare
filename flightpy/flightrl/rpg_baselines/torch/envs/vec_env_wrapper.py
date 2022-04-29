@@ -75,8 +75,10 @@ class PingThread(Thread):
         self.env = vecEnv
 
     def run(self):
-        while not self.stopped.wait(5):
-            self.env.wrapper.sendUnityPing()
+        while True:
+            time.sleep(2)
+            while not self.stopped.wait(1):
+                self.env.wrapper.sendUnityPing()
 
     #######################################
     ############--MAIN-CLASS--#############
@@ -88,6 +90,8 @@ class FlightEnvVec(VecEnv, ABC):
         self.render_id = 0
         self.name = name
         self.env_cfg = env_cfg
+        self.stopFlag = Event()
+        self.thread = PingThread(self.stopFlag, self)
         self.wrapper = VisionEnv_v1(dump(self.env_cfg, Dumper=RoundTripDumper), False)
         self.is_unity_connected = False
         self.var = None
@@ -121,10 +125,8 @@ class FlightEnvVec(VecEnv, ABC):
         ##############--HB-DEAMON---###############
         ###########################################
         if self._heartbeat:
-            self.stopFlag = Event()
-            thread = PingThread(self.stopFlag, self)
-            thread.daemon = True
-            thread.start()
+            self.thread.daemon = True
+            self.thread.start()
 
         ###########################################
         ###############--OBS-SPACE--###############
@@ -244,6 +246,7 @@ class FlightEnvVec(VecEnv, ABC):
         if seed != 0:
             self.seed_val = seed
 
+        self.stopFlag.clear()
         self.seed(self.seed_val)
         # Require render cfg to be True
         self.connectUnity()
@@ -474,7 +477,7 @@ class FlightEnvVec(VecEnv, ABC):
         return ret
 
     def close(self):
-        # self.stopFlag.set()
+        self.stopFlag.set()
         self.reset()
         self.disconnectUnity()
         self.wrapper.close()
