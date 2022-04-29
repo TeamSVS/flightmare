@@ -1,6 +1,7 @@
 import os
 import pickle
 import threading
+import time
 from abc import ABC
 from copy import deepcopy
 from typing import Any, Callable, List, Optional, Sequence, Type, Union
@@ -9,6 +10,7 @@ import psutil
 import torch
 import torchvision.transforms as transforms
 import random
+from threading import Timer, Thread, Event
 import logging
 import gym
 import numpy as np
@@ -31,7 +33,9 @@ from stable_baselines3.common.vec_env.util import (copy_obs_dict, dict_to_obs,
 
 FLIGHTMAER_EXE = "RPG_Flightmare.x86_64"
 RGB_CHANNELS = 3
+HEARTBEAT_INTERVAL = 4
 FLIGHTMAER_NEXT_FOLDER = "/flightrender/"
+ALLOWED_USER_KILLER = ["giuseppe", "cam", "sara", "zaks", "students"]
 
 
 ######################################
@@ -62,12 +66,35 @@ def _normalize_obs(obs: np.ndarray, obs_rms: RunningMeanStd) -> np.ndarray:
 def _normalize_img(obs: np.ndarray) -> np.ndarray:
     return obs / 255
 
+    ############################################
+    ############--HB-DEAMON-CLASS--#############
+    ############################################
+
+
+class PingThread(Thread):
+    def __init__(self, event, vecEnv):
+        Thread.__init__(self)
+        self.stopped = event
+        self.env = vecEnv
+
+    def run(self):
+        while True:
+            time.sleep(2)
+            while not self.stopped.wait(HEARTBEAT_INTERVAL):
+                self.env.wrapper.sendUnityPing()
+
+    #######################################
+    ############--MAIN-CLASS--#############
+    #######################################
+
 
 class FlightEnvVec(VecEnv, ABC):
     def __init__(self, env_cfg, name, mode):
         self.render_id = 0
         self.name = name
         self.env_cfg = env_cfg
+        self.stopFlag = Event()
+        self.thread = PingThread(self.stopFlag, self)
         self.wrapper = VisionEnv_v1(dump(self.env_cfg, Dumper=RoundTripDumper), False)
         self.is_unity_connected = False
         self.var = None
@@ -76,6 +103,7 @@ class FlightEnvVec(VecEnv, ABC):
         self._reward = None
         self.mode = mode  # rgb, depth, both
         self.seed_val = 0
+        self._heartbeat = True if env_cfg["simulation"]["heartbeat"] == "yes" else False
         self.obs_ranges_dic = {0: [0, 10],
                                1: [-20, 80],
                                2: [-10, 10],
@@ -95,6 +123,13 @@ class FlightEnvVec(VecEnv, ABC):
         self.rew_dim = self.wrapper.getRewDim()
         self.img_width = self.wrapper.getImgWidth()
         self.img_height = self.wrapper.getImgHeight()
+
+        ###########################################
+        ##############--HB-DEAMON---###############
+        ###########################################
+        if self._heartbeat:
+            self.thread.daemon = True
+            self.thread.start()
 
         ###########################################
         ###############--OBS-SPACE--###############
@@ -232,11 +267,15 @@ class FlightEnvVec(VecEnv, ABC):
     def change_obstacles(self, seed=0, difficult="medium", level=0, random=False):
         # TODO Random not yet implemented
 
-        self.disconnectUnity()
+        self.close()
         for proc in psutil.process_iter():
             if proc.name() == FLIGHTMAER_EXE:
-                proc.kill()
+                # if proc.username() == os.environ.get("USERNAME"):
+                if psutil.Process(proc.pid).username() in ALLOWED_USER_KILLER:
+                    print("KILLED")
+                    proc.kill()
 
+        # time.sleep(10) #is this usefull?
         self.spawn_flightmare()
 
         self.env_cfg["environment"]["level"] = difficult
@@ -246,6 +285,7 @@ class FlightEnvVec(VecEnv, ABC):
         if seed != 0:
             self.seed_val = seed
 
+        self.stopFlag.clear()
         self.seed(self.seed_val)
         # Require render cfg to be True
         self.connectUnity()
@@ -321,8 +361,9 @@ class FlightEnvVec(VecEnv, ABC):
 
         logging.info("." + self.name)
         if self.is_unity_connected:
-            self.render_id = self.render(self.render_id)
-            #print(self.getImage(True))
+
+            self.render_id = self.render(
+                self.render_id)  # TODO INCREASE RENDER ID IT IS REALLY NECESSARY TO DO RENDER ID +1
             logging.info(self.getImage(True))
         new_obs = self.getObs()
 
@@ -483,6 +524,9 @@ class FlightEnvVec(VecEnv, ABC):
         return ret
 
     def close(self):
+        self.stopFlag.set()
+        self.reset()
+        self.disconnectUnity()
         self.wrapper.close()
 
     def connectUnity(self):

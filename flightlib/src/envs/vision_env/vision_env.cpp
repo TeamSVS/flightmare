@@ -321,38 +321,33 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
     //Vector<3> actua_dist = goal_pos_ - quad_state_.p;
   //Scalar dist_reward = (max_dist_+ actua_dist).norm() * (max_dist_- actua_dist).norm() / 10000;
   // Scalar dist_reward =  pow((max_dist_- actua_dist).norm(), 2) / (pow((max_dist_).norm(), 2) + 1);
-    Scalar dist_reward = goal_dist_rew_ * quad_state_.p(QS::POSX) / goal_pos_[0];
-
+   // Scalar dist_reward = goal_dist_rew_ * quad_state_.p(QS::POSX) / goal_pos_[0];
+    Scalar dist_reward = 1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0]));
  // - tracking a constant linear velocity
-  Scalar lin_vel_reward =
-    vel_coeff_ * (quad_state_.v - goal_linear_vel_).norm();
+  //Scalar lin_vel_reward =
+   // vel_coeff_ * (quad_state_.v - goal_linear_vel_).norm();
+   Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
 
   // - angular velocity penalty, to avoid oscillations
   const Scalar ang_vel_penalty = angular_vel_coeff_ * quad_state_.w.norm();
 
   //  change progress reward as survive reward
   const Scalar total_reward =
-        dist_reward + collision_penalty + lin_vel_reward + ang_vel_penalty + survive_rew_;
+        (dist_reward + collision_penalty + ang_vel_penalty + survive_rew_) * time_percentage;
     //lin_vel_reward + collision_penalty + ang_vel_penalty + survive_rew_;
     
   string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty) + "  " +
-     to_string(lin_vel_reward) + "  " + to_string(ang_vel_penalty) + "  " + to_string(total_reward);
+    to_string(time_percentage) + "  " + to_string(ang_vel_penalty) + "  " + to_string(total_reward);
   logger_.info(str);
+  //logger_.info(to_string(( total_reward )));
 
     // return all reward components for debug purposes
-    reward << dist_reward, collision_penalty, lin_vel_reward, ang_vel_penalty, survive_rew_, total_reward;
+    reward << dist_reward, collision_penalty,  ang_vel_penalty, survive_rew_, total_reward;
   return true;
 }
 
 bool VisionEnv::isTerminalState(Scalar &reward) {
 
-
-//for this competitio, only evaluate x position
-if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 10){
-  reward = 10.0;
-  std::cout << "reached target position!\n";
-  return true;
-}
 
   //collsion
   //if (is_collision_) {
@@ -363,7 +358,7 @@ if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 10){
 
  //simulation time out
  if (cmd_.t >= max_t_ - sim_dt_) {
-   reward = -1000;
+   reward = -100;
    std::cout << "Timeout!\n";
    return true;
  }
@@ -399,9 +394,20 @@ if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 10){
 
     //std::cout << "XYZ not valid\n";
 
-    reward = -1.0;
+    reward = -0.5;
     return true;
   }
+
+
+//for this competitio, only evaluate x position
+if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 10){
+  reward = 100.0;
+  std::cout << "reached target position!\n";
+  return true;
+}
+
+
+
   return false;
 }
 
@@ -549,8 +555,10 @@ bool VisionEnv::configDynamicObjects(const std::string &yaml_file) {
   int num_objects = cfg_node["N"].as<int>();
   // create static objects
   for (int i = 0; i < num_objects; i++) {
+
     std::string object_id = "Object" + std::to_string(i + 1);
     std::string prefab_id = cfg_node[object_id]["prefab"].as<std::string>();
+    prefab_id = "rpg_box0" + to_string(i % 3 + 1);
     std::shared_ptr<UnityObject> obj =
       std::make_shared<UnityObject>(object_id, prefab_id);
 
@@ -596,7 +604,7 @@ bool VisionEnv::configStaticObjects(const std::string &csv_file) {
     // Read column 0 for time
     std::string object_id = "StaticObject" + std::to_string(i + 1);
     std::string prefab_id = (std::string)row[0];
-
+    prefab_id = "rpg_box03";
     //
     std::shared_ptr<UnityObject> obj =
       std::make_shared<UnityObject>(object_id, prefab_id);
