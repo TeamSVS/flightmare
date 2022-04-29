@@ -422,6 +422,8 @@ class FlightEnvVec(VecEnv, ABC):
                 self.obs_ranges_dic[key][1] = value.max()
                 changed_range = True
                 # update normalization based on new range
+                lower_bound = self.obs_ranges_dic[key][0]
+                upper_bound = self.obs_ranges_dic[key][1]
                 new_val = 2 * (value - lower_bound) / (upper_bound - lower_bound) - 1
 
             if new_val.min() < -1:
@@ -429,6 +431,8 @@ class FlightEnvVec(VecEnv, ABC):
                 self.obs_ranges_dic[key][0] = value.min()
                 changed_range = True
                 # update normalization based on new range
+                lower_bound = self.obs_ranges_dic[key][0]
+                upper_bound = self.obs_ranges_dic[key][1]
                 new_val = 2 * (value - lower_bound) / (upper_bound - lower_bound) - 1
             drone_state[:, int(key)] = new_val
 
