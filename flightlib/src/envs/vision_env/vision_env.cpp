@@ -38,6 +38,7 @@ void VisionEnv::init() {
 
   // create quadrotors
   quad_ptr_ = std::make_shared<Quadrotor>();
+  quadrotorScale_ = 1.0;
 
   // update dynamics
   QuadrotorDynamics dynamics;
@@ -103,6 +104,13 @@ bool VisionEnv::reset(Ref<Vector<>> obs) {
   quad_state_.x(QS::POSX) = uniform_dist_(random_gen_);
   quad_state_.x(QS::POSY) = uniform_dist_(random_gen_) * 9.0;
   quad_state_.x(QS::POSZ) = uniform_dist_(random_gen_) * 4 + 5.0;
+
+  std::cout << "Reset!\n";
+  std::cout << "Starting Drone X:" << quad_state_.p(QS::POSX) << "\n";
+  std::cout << "Starting Drone Y:" << quad_state_.p(QS::POSY) << "\n";
+  std::cout << "Starting Drone Z:" << quad_state_.p(QS::POSZ) << "\n";
+
+
 
   // reset quadrotor with random states
   quad_ptr_->reset(quad_state_);
@@ -457,6 +465,8 @@ bool VisionEnv::loadParam(const YAML::Node &cfg) {
   if (cfg["simulation"]) {
     sim_dt_ = cfg["simulation"]["sim_dt"].as<Scalar>();
     max_t_ = cfg["simulation"]["max_t"].as<Scalar>();
+    quadrotorScale_ = cfg["simulation"]["fakeQuadrotorScaleSize"].as<float>();
+
   } else {
     logger_.error("Cannot load [quadrotor_env] parameters");
     return false;
@@ -655,8 +665,8 @@ bool VisionEnv::configCamera(const YAML::Node &cfg) {
 
 bool VisionEnv::addQuadrotorToUnity(const std::shared_ptr<UnityBridge> bridge) {
   if (!quad_ptr_) return false;
-  bridge->addQuadrotor(quad_ptr_);
 
+  bridge->addQuadrotor(quad_ptr_, quadrotorScale_);
   for (int i = 0; i < (int)dynamic_objects_.size(); i++) {
     bridge->addDynamicObject(dynamic_objects_[i]);
   }
@@ -665,6 +675,10 @@ bool VisionEnv::addQuadrotorToUnity(const std::shared_ptr<UnityBridge> bridge) {
   bridge->setRenderOffset(unity_render_offset_);
   bridge->setObjectCSV(static_object_csv_);
   return true;
+}
+
+void VisionEnv::setFakeQuadrotorScale(float scale){
+  quadrotorScale_ = scale;
 }
 
 bool VisionEnv::setUnity(bool render, const int input_port, const int output_port) {
@@ -699,7 +713,7 @@ bool VisionEnv::setUnity(bool render) {
 
   addQuadrotorToUnity(unity_bridge_ptr_);
 
-  logger_.info("Flightmare Bridge created.");
+  logger_.info("Flightmare Bridge created. Yeah!");
   return true;
 }
 

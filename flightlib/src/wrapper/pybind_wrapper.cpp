@@ -71,6 +71,8 @@ PYBIND11_MODULE(flightgym, m) {
     .def("isTerminalState", &VisionVecEnv<VisionEnv>::isTerminalState)
     .def("curriculumUpdate", &VisionVecEnv<VisionEnv>::curriculumUpdate)
     .def("connectUnity", &VisionVecEnv<VisionEnv>::connectUnity)
+    .def("sendUnityPing", &VisionVecEnv<VisionEnv>::sendUnityPing)
+    .def("setFakeQuadrotorScale", &VisionVecEnv<VisionEnv>::setFakeQuadrotorScale)
     .def("disconnectUnity", &VisionVecEnv<VisionEnv>::disconnectUnity)
     .def("updateUnity", &VisionVecEnv<VisionEnv>::updateUnity)
     .def("getObs", &VisionVecEnv<VisionEnv>::getObs)
