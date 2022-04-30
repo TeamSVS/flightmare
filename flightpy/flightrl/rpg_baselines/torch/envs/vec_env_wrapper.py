@@ -88,9 +88,13 @@ class PingThread(Thread):
 
 
 class FlightEnvVec(VecEnv, ABC):
-    def __init__(self, env_cfg, name, mode):
+    def __init__(self, env_cfg, name, mode, n_frames=3):
         self.render_id = 0
+        self.stacked_drone_state = []
+        self.stacked_depth_imgs = []
+        self.stacked_rgb_imgs = []
         self.name = name
+        self.n_frames = n_frames
         self.env_cfg = env_cfg
         self.stopFlag = Event()
         self.thread = PingThread(self.stopFlag, self)
@@ -134,43 +138,24 @@ class FlightEnvVec(VecEnv, ABC):
         ###############--OBS-SPACE--###############
         ###########################################
 
-        depth_space = spaces.Box(
-            low=0., high=1.,
-            shape=(1, self.img_width, self.img_height), dtype=np.float64
-        )
-        drone_state_space = spaces.Box(
-            low=-np.Inf, high=np.Inf,
-            shape=(13,), dtype=np.float64
-        )
+        drone_spaces = {'state': spaces.Box(
+            low=-1., high=1.,
+            shape=(13, self.n_frames), dtype=np.float32
+        )}
 
-        rgb_space = spaces.Box(
-            low=0., high=1.,
-            shape=(RGB_CHANNELS, self.img_width, self.img_height), dtype=np.float64
-        )
-
-        if mode == "rgb":
-            self._observation_space = spaces.Dict(
-                spaces={
-                    "rgb": rgb_space,
-                    "state": drone_state_space
-                }
+        if 'depth' == self.mode or 'both' == self.mode:
+            drone_spaces['depth'] = spaces.Box(
+                low=0., high=1.,
+                shape=(1, self.n_frames, self.img_height, self.img_width), dtype=np.float32
             )
-        elif mode == "depth":
-            self._observation_space = spaces.Dict(
-                spaces={
-                    "depth": depth_space,
-                    "state": drone_state_space
-                }
+        if 'rgb' == self.mode or 'both' == self.mode:
+            drone_spaces['rgb'] = spaces.Box(
+                low=0, high=255,
+                shape=(3, self.n_frames, self.img_height, self.img_width), dtype=np.uint8
             )
 
-        else:
-            self._observation_space = spaces.Dict(
-                spaces={
-                    "rgb": rgb_space,
-                    "depth": depth_space,
-                    "state": drone_state_space
-                }
-            )
+        self._observation_space = spaces.Dict(spaces=drone_spaces)
+
         ###########################################
         ###############--ACT-SPACE--###############
         ###########################################
@@ -274,6 +259,14 @@ class FlightEnvVec(VecEnv, ABC):
             self._extraInfo.copy(),
         )
 
+    def _stack_frames(self, frame_list, new_frame):
+        if len(frame_list) == 0:
+            frame_list = [new_frame for _ in range(self.n_frames)]
+        else:
+            frame_list = frame_list[:self.n_frames - 1]
+            frame_list.insert(0, new_frame)
+        return frame_list
+
     def step(self, action):
         if action.ndim <= 1:
             action = action.reshape((-1, self.act_dim))
@@ -339,6 +332,9 @@ class FlightEnvVec(VecEnv, ABC):
 
     def reset(self, random=True):
         logging.info("Reset")
+        self.stacked_drone_state = []
+        self.stacked_depth_imgs = []
+        self.stacked_rgb_imgs = []
         self._reward_components = np.zeros(
             [self.num_envs, self.rew_dim], dtype=np.float64
         )
@@ -346,10 +342,6 @@ class FlightEnvVec(VecEnv, ABC):
         obs = self._observation
         #
         self.obs_rms_new.update(self._observation)
-        obs = self.normalize_obs(self._observation)
-        if self.num_envs == 1:
-            return _normalize_img(np.reshape(self.getImage(True),
-                                             (self.num_envs, RGB_CHANNELS, self.img_width, self.img_height)))[0]
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
         new_obs = self.getObs()
@@ -357,10 +349,11 @@ class FlightEnvVec(VecEnv, ABC):
 
     def getObs(self):
         ## Old Obs ##
-        self.wrapper.getObs(self._observation)
-        self.normalize_obs(self._observation)
-        new_obs = None
+        # self.wrapper.getObs(self._observation)
+        # self.normalize_obs(self._observation)
+
         ## New Obs ##
+        new_obs = {}
         # position (z, x, y) = [0:3], attitude=[3:7], linear_velocity=[7:10], angular_velocity=[10:13]
         drone_state = self.getQuadState()[:, :13].copy()
         # normalize between -1 and 1
@@ -398,18 +391,18 @@ class FlightEnvVec(VecEnv, ABC):
                 with open("NEW_VAL_NORMALIZATION.txt", "w") as myfile:
                     myfile.write(json.dumps(self.obs_ranges_dic))
 
-        if self.mode == "depth":
-            depth = np.reshape(self.getDepthImage(), (self.num_envs, 1, self.img_width, self.img_height))
-            new_obs = {"depth": depth.copy(), "state": drone_state}
-        elif self.mode == "rgb":
-            rgb = _normalize_img(
+            self.stacked_drone_state = self._stack_frames(self.stacked_drone_state, drone_state)
+            new_obs['state'] = np.array(self.stacked_drone_state).swapaxes(0, 1).swapaxes(1, 2)
+        if 'depth' == self.mode or 'both' == self.mode:
+            depth_imgs = self.getDepthImage().reshape((self.num_envs, 1, self.img_height, self.img_width))
+            self.stacked_depth_imgs = self._stack_frames(self.stacked_depth_imgs, depth_imgs)
+            new_obs['depth'] = np.array(self.stacked_depth_imgs).swapaxes(0, 1).swapaxes(1, 2)
+        if 'rgb' == self.mode or 'both' == self.mode:
+            rgb_imgs = _normalize_img(
                 np.reshape(self.getImage(True), (self.num_envs, RGB_CHANNELS, self.img_width, self.img_height)))
-            new_obs = {"rgb": rgb.copy(), "state": drone_state}
-        else:
-            rgb = _normalize_img(
-                np.reshape(self.getImage(True), (self.num_envs, RGB_CHANNELS, self.img_width, self.img_height)))
-            depth = np.reshape(self.getDepthImage(), (self.num_envs, 1, self.img_width, self.img_height))
-            new_obs = {"rgb": rgb.copy(), "depth": depth.copy(), "state": drone_state}
+            self.stacked_rgb_imgs = self._stack_frames(self.stacked_rgb_imgs, rgb_imgs)
+            new_obs['rgb'] = np.array(self.stacked_rgb_imgs).swapaxes(0, 1).swapaxes(1, 2)
+
         return new_obs.copy()
 
     def reset_and_update_info(self):
