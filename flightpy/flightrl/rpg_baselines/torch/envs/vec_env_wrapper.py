@@ -363,10 +363,8 @@ class FlightEnvVec(VecEnv, ABC):
         self.obs_rms_new.update(self._observation)
         obs = self.normalize_obs(self._observation)
 
-        for i in range(self.num_envs):
-            for j in range(3):  # inizialize
-                self.maxPos[i] = self._quadstate[i][1]
-                self.totalReward[i] = 0
+        self.totalReward = np.zeros([self.num_envs], dtype=np.float64)
+        self.maxPos = np.zeros([self.num_envs], dtype=np.float64)
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
         new_obs = self.getObs()
