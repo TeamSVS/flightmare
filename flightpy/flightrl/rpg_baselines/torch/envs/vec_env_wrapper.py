@@ -222,6 +222,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.maxPos = np.zeros([self.num_envs], dtype=np.float64)
         self.myReward = np.zeros([self.num_envs], dtype=np.float64)
         self.totalReward = np.zeros([self.num_envs], dtype=np.float64)
+        self.GOAL_MAX = 65
 
     def seed(self, seed=0):
         if seed != 0:
@@ -317,22 +318,32 @@ class FlightEnvVec(VecEnv, ABC):
         logging.info(self.getImage(True))
 
         new_obs = self.getObs()
-        for i in range(self.num_envs):
-            if self._done[i]:
-                self.myReward[i] = -2.0
-                self.totalReward[i] += self.myReward[i]
-                info[i]["episode"] = {"reward": self.totalReward[i]}
+        info = self.getReward(info)
 
-            else:
-                self.myReward[i] = self._quadstate[i][0] - self.maxPos[i]
-                if self._quadstate[i][0] > self.maxPos[i]:
-                    self.maxPos[i] = self._quadstate[i][0]
         return (
             new_obs,
             self.myReward[:].copy(),  # add our reward
             self._done.copy(),
             info.copy(),
         )
+
+    def getReward(self,info):
+        for i in range(self.num_envs):
+            if self._done[i]:
+                if self.maxPos[i] > self.GOAL_MAX:
+                    self.myReward[i] = 5
+                else:
+                    self.myReward[i] = -5.0
+
+                info[i]["episode"] = {"reward": self.totalReward[i]}
+
+            else:
+                step = self._quadstate[i][1] - self.maxPos[i]
+                self.myReward[i] = step if step > 0 else 0
+                if self._quadstate[i][0] > self.maxPos[i]:
+                    self.maxPos[i] = self._quadstate[i][1]
+            self.totalReward[i] += self.myReward[i]
+        return info
 
     def sample_actions(self):
         actions = []
@@ -352,12 +363,9 @@ class FlightEnvVec(VecEnv, ABC):
         self.obs_rms_new.update(self._observation)
         obs = self.normalize_obs(self._observation)
 
-        if self.num_envs == 1:
-            return _normalize_img(
-                np.reshape(self.getImage(True), (self.num_envs, RGB_CHANNELS, self.img_width, self.img_height)))[0]
         for i in range(self.num_envs):
             for j in range(3):  # inizialize
-                self.maxPos[i] = 0
+                self.maxPos[i] = self._quadstate[i][1]
                 self.totalReward[i] = 0
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
@@ -474,13 +482,7 @@ class FlightEnvVec(VecEnv, ABC):
     def _update_epi_info(self):
         info = [{} for _ in range(self.num_envs)]
         for i in range(self.num_envs):
-            eprew = sum(self.rewards[i])
-            eplen = len(self.rewards[i])
-            epinfo = {"r": eprew, "l": eplen}
-            for j in range(self.rew_dim - 1):
-                epinfo[self.reward_names[j]] = self.sum_reward_components[i, j]
-                self.sum_reward_components[i, j] = 0.0
-            info[i]["episode"] = epinfo
+            info[i]["episode"] = {"reward": self.totalReward[i]}
             self.rewards[i].clear()
         return info
 
