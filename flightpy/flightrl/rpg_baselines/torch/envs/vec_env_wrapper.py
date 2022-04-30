@@ -34,6 +34,24 @@ FLIGHTMAER_EXE = "RPG_Flightmare.x86_64"
 RGB_CHANNELS = 3
 FLIGHTMAER_NEXT_FOLDER = "/flightrender/"
 
+############ REWARD PARAMS ############
+# coefficients
+X_PROGRESS_REWARD_WEIGHT = 1
+LV_PROGRESS_REWARD_WEIGHT = 0
+AV_PROGRESS_REWARD_WEIGHT = 0
+EDGES_DISTANCE_REWARD_WEIGHT = 0
+DANGER_ZONE_REWARD_WEIGHT = 1
+# constants
+GOAL_REWARD = 100
+COLLISION_PENALTY = -50
+DANGER_ZONE_PENALTY = -10
+EXIT_BOX_PENALTY = -80
+STEP_PENALTY = -0.25
+TIME_ELAPSED_PENALTY = 0
+
+GOAL_X = 60
+DANGER_MARGIN = 0.5
+
 
 ######################################
 ############--FUNCTIONS--#############
@@ -96,6 +114,7 @@ class FlightEnvVec(VecEnv, ABC):
         self._reward = None
         self.mode = mode  # rgb, depth, both
         self.seed_val = 0
+        self.max_x_reached = np.zeros(self.num_envs)
         self._heartbeat = True if env_cfg["simulation"]["heartbeat"] == "yes" else False
         self.obs_ranges_dic = {0: [0, 10],
                                1: [-20, 80],
@@ -116,6 +135,10 @@ class FlightEnvVec(VecEnv, ABC):
         self.rew_dim = self.wrapper.getRewDim()
         self.img_width = self.wrapper.getImgWidth()
         self.img_height = self.wrapper.getImgHeight()
+        self.rew_upper_bound = max(GOAL_REWARD, COLLISION_PENALTY, EXIT_BOX_PENALTY, STEP_PENALTY, DANGER_ZONE_PENALTY,
+                                   TIME_ELAPSED_PENALTY)
+        self.rew_lower_bound = min(GOAL_REWARD, COLLISION_PENALTY, EXIT_BOX_PENALTY, STEP_PENALTY, DANGER_ZONE_PENALTY,
+                                   TIME_ELAPSED_PENALTY)
 
         ###########################################
         ##############--HB-DEAMON---###############
@@ -268,6 +291,72 @@ class FlightEnvVec(VecEnv, ABC):
             self._extraInfo.copy(),
         )
 
+    def get_info(self, reward):  # green
+        info = [{} for _ in range(self.num_envs)]
+        # log episode total reward and lenght
+        for i in range(self.num_envs):
+            self.rewards[i].append(reward[i])
+            if self._done[i]:
+                eprew = sum(self.rewards[i])
+                eplen = len(self.rewards[i])
+                info[i]["episode"] = {"r": eprew, "l": eplen}
+                self.rewards[i].clear()
+        return info
+
+    def normalize_rewards(self, vals):
+        res = []
+        for v in vals:
+            res.append(self.normalize(v, self.rew_lower_bound, self.rew_upper_bound))
+        return res
+
+    def distance_two_points(self, point1, point2):
+        point1 = np.subtract(point2, point1)
+        point1 = np.square(point1)
+        return np.sqrt(np.sum(point1))
+
+    def compute_rewards(self):
+        rewards = []
+        for i in range(self.num_envs):
+            quad_pos = self._quadstate[i][0:3]
+            x_pos = quad_pos[1]
+            if self._done[i]:
+                # if done, last reward component is
+                # -1 for collision
+                # -0.5 if exiting bounding box
+                # 0 if max time elapsed
+                if x_pos > GOAL_X:  # reached goal
+                    rewards.append(GOAL_REWARD)
+                elif self._reward_components[i, -1] == -1:  # obstacle collision
+                    rewards.append(COLLISION_PENALTY)
+                elif self._reward_components[i, -1] == 0:  # time elapsed
+                    rewards.append(TIME_ELAPSED_PENALTY)
+                else:  # exit bounding box
+                    rewards.append(EXIT_BOX_PENALTY)
+                self.max_x_reached[i] = 0
+
+            else:
+                reward = 0
+                # reward progress on x-axis
+                x_progress = x_pos - self.max_x_reached[i]
+                if x_pos > self.max_x_reached[i]:
+                    self.max_x_reached[i] = x_pos
+                reward += x_progress * X_PROGRESS_REWARD_WEIGHT
+
+                # reward step
+                reward += STEP_PENALTY
+
+                # reward obstacle approach
+                obstacles_info = self._observation[i][14:-1]
+                obstacles_info = np.split(obstacles_info, len(obstacles_info) / 4)
+                for info in obstacles_info:
+                    # compute distance
+                    if self.distance_two_points(info[0:3], quad_pos) < info[3] + DANGER_MARGIN:
+                        reward += DANGER_ZONE_REWARD_WEIGHT * DANGER_ZONE_PENALTY
+
+                rewards.append(reward)
+
+        return self.normalize_rewards(rewards)
+
     def step(self, action):
         if action.ndim <= 1:
             action = action.reshape((-1, self.act_dim))
@@ -296,33 +385,17 @@ class FlightEnvVec(VecEnv, ABC):
         else:
             info = [{} for i in range(self.num_envs)]
 
-        for i in range(self.num_envs):
-            self.rewards[i].append(self._reward_components[i, -1])
-            for j in range(self.rew_dim - 1):
-                self.sum_reward_components[i, j] += self._reward_components[i, j]
-            if self._done[i]:
-                eprew = sum(self.rewards[i])
-                eplen = len(self.rewards[i])
-                epinfo = {"r": eprew, "l": eplen}
-                for j in range(self.rew_dim - 1):
-                    epinfo[self.reward_names[j]] = self.sum_reward_components[i, j]
-                    self.sum_reward_components[i, j] = 0.0
-                info[i]["episode"] = epinfo
-                self.rewards[i].clear()
-
         logging.info("." + self.name)
         if self.is_unity_connected:
             self.render_id = self.render(
                 self.render_id)  # TODO INCREASE RENDER ID IT IS REALLY NECESSARY TO DO RENDER ID +1
             logging.info(self.getImage(True))
-        new_obs = self.getObs()
 
-        return (
-            new_obs,
-            self._reward_components[:, -1].copy(),
-            self._done.copy(),
-            info.copy(),
-        )
+        obs = self.getObs()
+        reward = self.compute_rewards()
+        done = self._done.copy()
+        info = self.get_info(reward)
+        return obs, reward, done, info
 
     def sample_actions(self):
         actions = []
@@ -341,6 +414,7 @@ class FlightEnvVec(VecEnv, ABC):
         #
         self.obs_rms_new.update(self._observation)
         obs = self.normalize_obs(self._observation)
+        self.max_x_reached = np.zeros(self.num_envs)
         if self.num_envs == 1:
             return _normalize_img(np.reshape(self.getImage(True),
                                              (self.num_envs, RGB_CHANNELS, self.img_width, self.img_height)))[0]
@@ -348,6 +422,9 @@ class FlightEnvVec(VecEnv, ABC):
             self.render_id = self.render(self.render_id)
         new_obs = self.getObs()
         return new_obs
+
+    def normalize(self, value, lower_bound, upper_bound):
+        return 2 * (value - lower_bound) / (upper_bound - lower_bound) - 1
 
     def getObs(self):
         ## Old Obs ##

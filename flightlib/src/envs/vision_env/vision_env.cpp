@@ -336,6 +336,10 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
 }
 
 bool VisionEnv::isTerminalState(Scalar &reward) {
+//changes reward to
+// -1 <- if collision
+// -0.5 <- if exits bounding box
+// 0 <- if timeout
   if (is_collision_) {
       reward = -1.0;
       std::cout << "Collision!\n";
@@ -380,7 +384,7 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
 
     std::cout << "XYZ not valid\n";
 
-    reward = -1.0;
+    reward = -0.5;
     return true;
   }
   return false;
