@@ -351,15 +351,15 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
 bool VisionEnv::isTerminalState(Scalar &reward) {
 
  Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
- Scalar maxCollision = num_dynamic_objects_ + num_static_objects_;
+// Scalar maxCollision = num_dynamic_objects_ + num_static_objects_;
 
   //collsion
   if (is_collision_) {
       //reward = -1.0;
       //std::cout << "Collision!\n";
       //return true;
-      if(num_collision < maxCollision)
-        num_collision++;
+      // if(num_collision < maxCollision)
+      //   num_collision++;
   }
 
  //simulation time out
@@ -408,8 +408,8 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
 //for this competitio, only evaluate x position
 if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 10){
   reward = 100.0;
-  Scalar collisionPercentage = (maxCollision - num_collision) / (maxCollision);
-  reward = reward * time_percentage * sqrt(collisionPercentage);
+  //Scalar collisionPercentage = (maxCollision - num_collision) / (maxCollision);
+  reward = reward * time_percentage;
   std::cout << "reached target position!\n";
   return true;
 }
