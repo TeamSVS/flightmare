@@ -105,18 +105,11 @@ bool VisionEnv::reset(Ref<Vector<>> obs) {
   quad_state_.x(QS::POSY) = uniform_dist_(random_gen_) * 9.0;
   quad_state_.x(QS::POSZ) = uniform_dist_(random_gen_) * 4 + 5.0;
 
-<<<<<<< HEAD
-  old_dist_[0] = 1000000;
-  old_dist_[1] = 1000000;
-  old_dist_[2] = 1000000;
-=======
   std::cout << "Reset!\n";
   std::cout << "Starting Drone X:" << quad_state_.p(QS::POSX) << "\n";
   std::cout << "Starting Drone Y:" << quad_state_.p(QS::POSY) << "\n";
   std::cout << "Starting Drone Z:" << quad_state_.p(QS::POSZ) << "\n";
 
-
->>>>>>> 4e1f02d3f0bdc9e7e22c84e3456dde294c095301
 
   // reset quadrotor with random states
   quad_ptr_->reset(quad_state_);
