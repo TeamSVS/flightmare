@@ -38,23 +38,23 @@ ALLOWED_USER_KILLER = ["giuseppe", "cam", "sara", "zaks", "students"]
 
 ############ REWARD PARAMS ############
 # coefficients
-X_PROGRESS_REWARD_WEIGHT = 5
-X_REGRESS_REWARD_WEIGHT = 0.5
+X_PROGRESS_REWARD_WEIGHT = 15
+X_REGRESS_REWARD_WEIGHT = 1
 
 EDGES_DISTANCE_REWARD_WEIGHT = 1
 DANGER_ZONE_REWARD_WEIGHT = 1
 STEP_PENALTY_WEIGHT = 1
 # constants
 GOAL_REWARD = 100
-COLLISION_PENALTY = -50
+COLLISION_PENALTY = -60
 DANGER_ZONE_PENALTY = -5
 EXIT_BOX_PENALTY = -80
-STEP_PENALTY = -0.25
-TIME_ELAPSED_PENALTY = -60
+STEP_PENALTY = -0.1
+TIME_ELAPSED_PENALTY = -50
 NEAR_EDGE_PENALTY = -8
 
-DANGER_MARGIN = 0.5
-EDGE_MARGIN = 0.8
+DANGER_MARGIN = 0.1
+EDGE_MARGIN = 0.3
 
 
 ######################################
@@ -350,13 +350,13 @@ class FlightEnvVec(VecEnv, ABC):
                         reward += DANGER_ZONE_REWARD_WEIGHT * DANGER_ZONE_PENALTY
 
                 # reward bounding box edges approach
-                ranges = self.env_cfg["world_box"], 3  # order: min_x, max_x, min_y, max_y, min_z, max_z
+                ranges = self.env_cfg["environment"]["world_box"]  # order: min_x, max_x, min_y, max_y, min_z, max_z
                 # quad pos order: z, x, y
-                if quad_pos[0] < ranges[4]+EDGE_MARGIN | quad_pos[0] > ranges[5] - EDGE_MARGIN:
+                if quad_pos[0] < ranges[4]+EDGE_MARGIN or quad_pos[0] > ranges[5] - EDGE_MARGIN:
                     reward += EDGES_DISTANCE_REWARD_WEIGHT * NEAR_EDGE_PENALTY
-                if quad_pos[1] < ranges[0]+EDGE_MARGIN | quad_pos[1] > ranges[1] - EDGE_MARGIN:
+                if quad_pos[1] < ranges[0]+EDGE_MARGIN or quad_pos[1] > ranges[1] - EDGE_MARGIN:
                     reward += EDGES_DISTANCE_REWARD_WEIGHT * NEAR_EDGE_PENALTY
-                if quad_pos[2] < ranges[2] + EDGE_MARGIN | quad_pos[2] > ranges[3] - EDGE_MARGIN:
+                if quad_pos[2] < ranges[2] + EDGE_MARGIN or quad_pos[2] > ranges[3] - EDGE_MARGIN:
                     reward += EDGES_DISTANCE_REWARD_WEIGHT * NEAR_EDGE_PENALTY
 
                 rewards.append(reward)
