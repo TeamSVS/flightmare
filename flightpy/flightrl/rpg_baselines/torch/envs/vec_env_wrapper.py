@@ -320,12 +320,13 @@ class FlightEnvVec(VecEnv, ABC):
                     self.myReward[i] = -5.0
                 eprew = self.totalReward[i]+self.myReward[i]
                 info[i]["episode"] = {"r": eprew, "l":1}
+                self.totalReward[i]=0
             else:
                 step = self._quadstate[i][1] - self.maxPos[i]
                 self.myReward[i] = step if step > 0 else 0
                 if self._quadstate[i][0] > self.maxPos[i]:
                     self.maxPos[i] = self._quadstate[i][1]
-            self.totalReward[i] += self.myReward[i]
+                self.totalReward[i] += self.myReward[i]
         return info
 
     def sample_actions(self):
