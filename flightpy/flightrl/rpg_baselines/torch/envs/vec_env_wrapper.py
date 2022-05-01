@@ -296,22 +296,12 @@ class FlightEnvVec(VecEnv, ABC):
             self.render_id = self.render(
                 self.render_id)  # TODO INCREASE RENDER ID IT IS REALLY NECESSARY TO DO RENDER ID +1
 
-        if len(self._extraInfoNames) != 0:
-            info = [
-                {
-                    "extra_info": {
-                        self._extraInfoNames[j]: self._extraInfo[i, j]
-                        for j in range(0, len(self._extraInfoNames))
-                    }
-                }
-                for i in range(self.num_envs)
-            ]
-        else:
-            info = [{} for i in range(self.num_envs)]
+
+
         logging.info(self.getImage(True))
 
         new_obs = self.getObs()
-        info = self.getReward(info)
+        info = self.getReward()
 
         return (
             new_obs,
@@ -320,16 +310,16 @@ class FlightEnvVec(VecEnv, ABC):
             info.copy(),
         )
 
-    def getReward(self,info):
+    def getReward(self):
+        info = [{} for i in range(self.num_envs)]
         for i in range(self.num_envs):
             if self._done[i]:
                 if self.maxPos[i] > self.GOAL_MAX:
                     self.myReward[i] = 5
                 else:
                     self.myReward[i] = -5.0
-
-                info[i]["episode"] = {"reward": self.totalReward[i]}
-
+                eprew = self.totalReward[i]+self.myReward[i]
+                info[i]["episode"] = {"r": eprew, "l":1}
             else:
                 step = self._quadstate[i][1] - self.maxPos[i]
                 self.myReward[i] = step if step > 0 else 0
