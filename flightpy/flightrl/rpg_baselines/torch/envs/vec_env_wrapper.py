@@ -38,21 +38,23 @@ ALLOWED_USER_KILLER = ["giuseppe", "cam", "sara", "zaks", "students"]
 
 ############ REWARD PARAMS ############
 # coefficients
-X_PROGRESS_REWARD_WEIGHT = 1
-LV_PROGRESS_REWARD_WEIGHT = 0
-AV_PROGRESS_REWARD_WEIGHT = 0
-EDGES_DISTANCE_REWARD_WEIGHT = 0
+X_PROGRESS_REWARD_WEIGHT = 5
+X_REGRESS_REWARD_WEIGHT = 0.5
+
+EDGES_DISTANCE_REWARD_WEIGHT = 1
 DANGER_ZONE_REWARD_WEIGHT = 1
+STEP_PENALTY_WEIGHT = 1
 # constants
 GOAL_REWARD = 100
 COLLISION_PENALTY = -50
-DANGER_ZONE_PENALTY = -10
+DANGER_ZONE_PENALTY = -5
 EXIT_BOX_PENALTY = -80
 STEP_PENALTY = -0.25
-TIME_ELAPSED_PENALTY = 0
+TIME_ELAPSED_PENALTY = -60
+NEAR_EDGE_PENALTY = -8
 
-GOAL_X = 60
 DANGER_MARGIN = 0.5
+EDGE_MARGIN = 0.8
 
 
 ######################################
@@ -282,7 +284,6 @@ class FlightEnvVec(VecEnv, ABC):
             self._extraInfo.copy(),
         )
 
-
     def get_info(self, reward):  # green
         info = [{} for _ in range(self.num_envs)]
         # log episode total reward and lenght
@@ -316,7 +317,7 @@ class FlightEnvVec(VecEnv, ABC):
                 # -1 for collision
                 # -0.5 if exiting bounding box
                 # 0 if max time elapsed
-                if x_pos > GOAL_X:  # reached goal
+                if x_pos > self._observation[i][1]:  # reached goal
                     rewards.append(GOAL_REWARD)
                 elif self._reward_components[i, -1] == -1:  # obstacle collision
                     rewards.append(COLLISION_PENALTY)
@@ -332,10 +333,13 @@ class FlightEnvVec(VecEnv, ABC):
                 x_progress = x_pos - self.max_x_reached[i]
                 if x_pos > self.max_x_reached[i]:
                     self.max_x_reached[i] = x_pos
-                reward += x_progress * X_PROGRESS_REWARD_WEIGHT
+                if x_progress > 0:
+                    reward += x_progress * X_PROGRESS_REWARD_WEIGHT
+                else:
+                    reward += x_progress * X_REGRESS_REWARD_WEIGHT
 
                 # reward step
-                reward += STEP_PENALTY
+                reward += STEP_PENALTY_WEIGHT * STEP_PENALTY
 
                 # reward obstacle approach
                 obstacles_info = self._observation[i][14:-1]
@@ -344,6 +348,16 @@ class FlightEnvVec(VecEnv, ABC):
                     # compute distance
                     if self.distance_two_points(info[0:3], quad_pos) < info[3] + DANGER_MARGIN:
                         reward += DANGER_ZONE_REWARD_WEIGHT * DANGER_ZONE_PENALTY
+
+                # reward bounding box edges approach
+                ranges = self.env_cfg["world_box"], 3  # order: min_x, max_x, min_y, max_y, min_z, max_z
+                # quad pos order: z, x, y
+                if quad_pos[0] < ranges[4]+EDGE_MARGIN | quad_pos[0] > ranges[5] - EDGE_MARGIN:
+                    reward += EDGES_DISTANCE_REWARD_WEIGHT * NEAR_EDGE_PENALTY
+                if quad_pos[1] < ranges[0]+EDGE_MARGIN | quad_pos[1] > ranges[1] - EDGE_MARGIN:
+                    reward += EDGES_DISTANCE_REWARD_WEIGHT * NEAR_EDGE_PENALTY
+                if quad_pos[2] < ranges[2] + EDGE_MARGIN | quad_pos[2] > ranges[3] - EDGE_MARGIN:
+                    reward += EDGES_DISTANCE_REWARD_WEIGHT * NEAR_EDGE_PENALTY
 
                 rewards.append(reward)
 
@@ -356,7 +370,6 @@ class FlightEnvVec(VecEnv, ABC):
             frame_list = frame_list[:self.n_frames - 1]
             frame_list.insert(0, new_frame)
         return frame_list
-
 
     def step(self, action):
         if action.ndim <= 1:
