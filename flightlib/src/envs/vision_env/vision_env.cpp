@@ -108,11 +108,6 @@ bool VisionEnv::reset(Ref<Vector<>> obs) {
   max_dist_ = goal_pos_ - quad_state_.p;
   num_collision = 0;
 
-//  std::cout << "Reset!\n";
-//  std::cout << "Starting Drone X:" << quad_state_.p(QS::POSX) << "\n";
-//  std::cout << "Starting Drone Y:" << quad_state_.p(QS::POSY) << "\n";
-//  std::cout << "Starting Drone Z:" << quad_state_.p(QS::POSZ) << "\n";
-
   // reset quadrotor with random states
   quad_ptr_->reset(quad_state_);
 
