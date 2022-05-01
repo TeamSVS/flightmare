@@ -317,7 +317,7 @@ class FlightEnvVec(VecEnv, ABC):
                 if self.maxPos[i] > self.GOAL_MAX:
                     self.myReward[i] = 5
                 else:
-                    self.myReward[i] = -5.0
+                    self.myReward[i] = -10.0
                 eprew = self.totalReward[i]+self.myReward[i]
                 info[i]["episode"] = {"r": eprew, "l":1}
                 self.totalReward[i]=0
