@@ -1,17 +1,19 @@
 environment:
-  level: "hard" # three difficulty level [easy, medium, hard]
+  level: "easy" # three difficulty level [easy, medium, hard]
   env_folder: "environment_0" # configurations for dynamic and static obstacles
   world_box: [ -20, 80, -10, 10, 0.0, 10 ] # Bounding box applied during training, exiting this box terminates the episode. [xmin, xmax, ymin, ymax, zmin, zmax]
   goal_vel: [ 3.0, 0.0, 0.0 ] # goal velicty for tracking vx, vy, vz
   max_detection_range: 10.0 # max obstacle detection range [m], obstacles outside this range will not be detected. The number of obstacles detected is fixed to 10, if less than 10 obstacles are within detectable range, the observation is padded with 10.0
   goal_pos: [ 80.0, 0.0, 5.0 ] #goal position to reach per axis
+  ref_qx: [0.976, 0.0, 0.219, 0] #the  x, y, z, w
 
 rewards:
   vel_coeff: -0.01
-  collision_coeff: -1.0   #-0.01
+  collision_coeff: -0.1   #-0.01
   angular_vel_coeff: -0.0001 #-0.0001
-  survive_rew: 0.02   #0.03
+  survive_rew: 0.05  #0.03
   goal_dist_rew: 0.09 #0.09
+  attitude_ori_coeff: -0.1
 
   names:
     [
@@ -27,8 +29,8 @@ rgb_camera:
   t_BC: [ 0.0, 0.0, 0.3 ] # translational vector of the camera with repect to the body frame
   r_BC: [ 0.0, 0.0, -90 ] # rotational angle (roll, pitch, yaw) of the camera in degree.
   channels: 3
-  width: 80
-  height: 80
+  width: 100
+  height: 100
   fov: 70.0
   enable_depth: yes
   enable_segmentation: no
@@ -44,10 +46,10 @@ simulation:
   seed: 1
   sim_dt: 0.02
   max_t: 20.0
-  num_envs: 2
+  num_envs: 1
   num_threads: 10
   heartbeat: yes
-  fakeQuadrotorScaleSize: 0.0001
+  fakeQuadrotorScaleSize: 1
 
 quadrotor_dynamics:
   mass: 0.752

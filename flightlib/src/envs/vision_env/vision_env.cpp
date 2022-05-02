@@ -108,6 +108,11 @@ bool VisionEnv::reset(Ref<Vector<>> obs) {
   max_dist_ = goal_pos_ - quad_state_.p;
   num_collision = 0;
 
+//  std::cout << "Reset!\n";
+//  std::cout << "Starting Drone X:" << quad_state_.p(QS::POSX) << "\n";
+//  std::cout << "Starting Drone Y:" << quad_state_.p(QS::POSY) << "\n";
+//  std::cout << "Starting Drone Z:" << quad_state_.p(QS::POSZ) << "\n";
+
   // reset quadrotor with random states
   quad_ptr_->reset(quad_state_);
 
@@ -327,16 +332,43 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   // - angular velocity penalty, to avoid oscillations
   const Scalar ang_vel_penalty = angular_vel_coeff_ * quad_state_.w.norm();
 
+  // string str1 = to_string(   quad_state_.w[0]     );
+  // string str2 = to_string(   quad_state_.w[1]     );
+  // string str3 = to_string(   quad_state_.w[2]     );
+  string gg = "";
+ // string str[4];
+ //Scalar qx[4];
+ Scalar attitude_penalty = 0;
+ Scalar qi = 0;
+ for (int i = 0; i < 4; i++){
+   qi = quad_state_.qx[i] - ref_qx_[i];
+   attitude_penalty += qi * qi; 
+ }
+ attitude_penalty = attitude_ori_coeff_ * sqrt(attitude_penalty);
+  //Scalar qx = quad_state_.qx[0] - ref_qx_[0];
+  //Scalar qz = quad_state_.qx[2] - ref_qx_[2];
+  //Scalar attitude_penalty = attitude_ori_coeff_ * sqrt(qx * qx + qz * qz);
+    //for (int i = 0; i < 4; i++)
+   //gg += to_string(  (quad_old_state_.qx - ref_qx_) )[i]) + " "; 
+   // gg = to_string(  );
+   //gg += to_string(qx) + " " + to_string(qz) + " " ;
+
+  //str[i] = to_string(   quad_state_.qx[i]     );
+
+
+  //logger_.info( "angular velocit: " + str1 + " " + str2 + " " + str3);
+ // logger_.info( "attitude : " + gg);
   //  change progress reward as survive reward
   const Scalar total_reward =
-        (dist_reward + collision_penalty + ang_vel_penalty + survive_rew_) * time_percentage;
+        (dist_reward + collision_penalty + attitude_penalty + survive_rew_) * time_percentage;
     //lin_vel_reward + collision_penalty + ang_vel_penalty + survive_rew_;
     
   string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty)
-                  + "  " + to_string(num_collision) + "  " +
-    to_string(time_percentage) + "  " + to_string(ang_vel_penalty) + "  " + to_string(total_reward);
+                  +  "  " +
+    to_string(attitude_penalty) + "  " + to_string(time_percentage) + "  " + to_string(total_reward);
   logger_.info(str);
   //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
+
 
     // return all reward components for debug purposes
     reward << dist_reward, collision_penalty,  ang_vel_penalty, survive_rew_, total_reward;
@@ -346,20 +378,18 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
 bool VisionEnv::isTerminalState(Scalar &reward) {
 
  Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
-// Scalar maxCollision = num_dynamic_objects_ + num_static_objects_;
+ Scalar maxCollision = num_dynamic_objects_ + num_static_objects_;
 
   //collsion
   if (is_collision_) {
-      //reward = -1.0;
-      //std::cout << "Collision!\n";
-      //return true;
-      // if(num_collision < maxCollision)
-      //   num_collision++;
+      reward = -1.0;
+      std::cout << "Collision!\n";
+      return true;
   }
 
  //simulation time out
  if (cmd_.t >= max_t_ - sim_dt_) {
-   reward = -100;
+   reward = -10;
    std::cout << "Timeout!\n";
    return true;
  }
@@ -395,14 +425,14 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
 
     //std::cout << "XYZ not valid\n";
 
-    reward = -0.5;
+    reward = -1.0;
     return true;
   }
 
 
 //for this competitio, only evaluate x position
 if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 10){
-  reward = 100.0;
+  reward = 10.0;
   //Scalar collisionPercentage = (maxCollision - num_collision) / (maxCollision);
   reward = reward * time_percentage;
   std::cout << "reached target position!\n";
@@ -489,6 +519,10 @@ bool VisionEnv::loadParam(const YAML::Node &cfg) {
       cfg["environment"]["goal_pos"].as<std::vector<Scalar>>();
        goal_pos_ = Vector<3>(goal_pos_vec.data());
 
+    std::vector<Scalar> ref_qx = 
+      cfg["environment"]["ref_qx"].as<std::vector<Scalar>>();
+      ref_qx_= Vector<4>(ref_qx.data());
+
     max_detection_range_ =
       cfg["environment"]["max_detection_range"].as<Scalar>();
   }
@@ -510,6 +544,7 @@ bool VisionEnv::loadParam(const YAML::Node &cfg) {
     angular_vel_coeff_ = cfg["rewards"]["angular_vel_coeff"].as<Scalar>();
     survive_rew_ = cfg["rewards"]["survive_rew"].as<Scalar>();
     goal_dist_rew_ = cfg["rewards"]["goal_dist_rew"].as<Scalar>();
+    attitude_ori_coeff_ = cfg["rewards"]["attitude_ori_coeff"].as<Scalar>();
 
     // load reward settings
     reward_names_ = cfg["rewards"]["names"].as<std::vector<std::string>>();
