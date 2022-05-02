@@ -298,32 +298,39 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   // ---------------------- reward function design
   // - compute collision penalty
   Scalar collision_penalty = 0.0;
+  Scalar total_detectable_obstacles = 0;
   size_t idx = 0;
   for (size_t sort_idx : sort_indexes(relative_pos_norm_)) {
     if (idx >= visionenv::kNObstacles) break;
 
-    Scalar relative_dist =
-      relative_pos_norm_[sort_idx]
-        ? (relative_pos_norm_[sort_idx] > 0) &&
-            (relative_pos_norm_[sort_idx] < max_detection_range_)
-        : max_detection_range_;
 
-    const Scalar dist_margin = 0.5;
+    Scalar relative_dist =
+         (relative_pos_norm_[sort_idx] > 0) &&
+            (relative_pos_norm_[sort_idx] < max_detection_range_)
+              ?  relative_pos_norm_[sort_idx] : max_detection_range_;
+      
+    const Scalar dist_margin = 10;
     if (relative_pos_norm_[sort_idx] <=
         obstacle_radius_[sort_idx] + dist_margin) {
       // compute distance penalty
-      collision_penalty += collision_coeff_ * std::exp(-1.0 * relative_dist);
+      collision_penalty += std::exp(-0.99 * relative_dist);
+      total_detectable_obstacles += 1;
+      
+     
     }
 
     idx += 1;
   }
-
+  
+  collision_penalty *= log(1 + quad_state_.v.norm()) * collision_coeff_ / (total_detectable_obstacles + 1);
+   //logger_.info( to_string(  collision_penalty  ));
+  
   // - tracking the difference between max and actua distances
     //Vector<3> actua_dist = goal_pos_ - quad_state_.p;
   //Scalar dist_reward = (max_dist_+ actua_dist).norm() * (max_dist_- actua_dist).norm() / 10000;
   // Scalar dist_reward =  pow((max_dist_- actua_dist).norm(), 2) / (pow((max_dist_).norm(), 2) + 1);
    // Scalar dist_reward = goal_dist_rew_ * quad_state_.p(QS::POSX) / goal_pos_[0];
-    Scalar dist_reward = 1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0]));
+    Scalar dist_reward = goal_dist_rew_ * (1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
  // - tracking a constant linear velocity
   //Scalar lin_vel_reward =
    // vel_coeff_ * (quad_state_.v - goal_linear_vel_).norm();
@@ -362,7 +369,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   const Scalar total_reward =
         (dist_reward + collision_penalty + attitude_penalty + survive_rew_) * time_percentage;
     //lin_vel_reward + collision_penalty + ang_vel_penalty + survive_rew_;
-    
+   //string str = to_string(   quad_state_.v.norm()   );
   string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty)
                   +  "  " +
     to_string(attitude_penalty) + "  " + to_string(time_percentage) + "  " + to_string(total_reward);
