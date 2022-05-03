@@ -9,6 +9,8 @@ import json
 import psutil
 import torch
 import torchvision.transforms as transforms
+from dronenavigation.models.compass.compass_model import CompassModel
+
 import random
 from threading import Timer, Thread, Event
 import logging
@@ -32,6 +34,7 @@ from stable_baselines3.common.vec_env.util import (copy_obs_dict, dict_to_obs,
 
 FLIGHTMAER_EXE = "RPG_Flightmare.x86_64"
 RGB_CHANNELS = 3
+DEPTH_CHANNELS =1
 HEARTBEAT_INTERVAL = 4
 FLIGHTMAER_NEXT_FOLDER = "/flightrender/"
 ALLOWED_USER_KILLER = ["giuseppe", "cam", "sara", "zaks", "students"]
@@ -89,6 +92,10 @@ class PingThread(Thread):
 
 class FlightEnvVec(VecEnv, ABC):
     def __init__(self, env_cfg, name, mode, n_frames=3):
+
+        self.port1 = random.randint(1025, 65534)
+        self.port2 = random.randint(1025, 65534)
+
         self.render_id = 0
         self.stacked_drone_state = []
         self.stacked_depth_imgs = []
@@ -98,6 +105,9 @@ class FlightEnvVec(VecEnv, ABC):
         self.env_cfg = env_cfg
         self.stopFlag = Event()
         self.thread = PingThread(self.stopFlag, self)
+
+        self.env_cfg["unity"]["input_port"] = self.port1
+        self.env_cfg["unity"]["output_port"] = self.port2
         self.wrapper = VisionEnv_v1(dump(self.env_cfg, Dumper=RoundTripDumper), False)
         self.is_unity_connected = False
         self.var = None
@@ -105,7 +115,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.envs = None
         self._reward = None
         self.mode = mode  # rgb, depth, both
-        self.seed_val = 0
+        self.seed_val = 42
         self._heartbeat = True if env_cfg["simulation"]["heartbeat"] == "yes" else False
         self.obs_ranges_dic = {0: [0, 10],
                                1: [-20, 80],
@@ -140,18 +150,18 @@ class FlightEnvVec(VecEnv, ABC):
 
         drone_spaces = {'state': spaces.Box(
             low=-1., high=1.,
-            shape=(13, self.n_frames), dtype=np.float32
+            shape=(self.num_envs,13, self.n_frames), dtype=np.float32
         )}
 
         if 'depth' == self.mode or 'both' == self.mode:
             drone_spaces['depth'] = spaces.Box(
                 low=0., high=1.,
-                shape=(1, self.n_frames, self.img_height, self.img_width), dtype=np.float32
+                shape=(self.num_envs,DEPTH_CHANNELS, self.n_frames, self.img_height, self.img_width), dtype=np.float32
             )
         if 'rgb' == self.mode or 'both' == self.mode:
             drone_spaces['rgb'] = spaces.Box(
                 low=0, high=255,
-                shape=(3, self.n_frames, self.img_height, self.img_width), dtype=np.uint8
+                shape=(self.num_envs,RGB_CHANNELS, self.n_frames, self.img_height, self.img_width), dtype=np.uint8
             )
 
         self._observation_space = spaces.Dict(spaces=drone_spaces)
@@ -199,12 +209,14 @@ class FlightEnvVec(VecEnv, ABC):
         #  state normalization
         self.obs_rms = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
         self.obs_rms_new = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
+        self.spawn_flightmare(self.port1, self.port2)
+        self.connectUnity()
 
     def seed(self, seed=0):
         if seed != 0:
             self.seed_val = seed
 
-        self.wrapper.setSeed(self.seed_val)
+        self.wrapper.setSeed(random.randint(1, 10000))
 
     def spawn_flightmare(self, input_port=0, output_port=0):
         if input_port > 0 and output_port > 0:
@@ -318,9 +330,9 @@ class FlightEnvVec(VecEnv, ABC):
 
         return (
             new_obs,
-            self._reward_components[:, -1].copy(),
-            self._done.copy(),
-            info.copy(),
+            self._reward_components[:, -1].copy()[0],
+            self._done.copy()[0],
+            info.copy()[0],
         )
 
     def sample_actions(self):
