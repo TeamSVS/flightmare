@@ -238,7 +238,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.seed(self.seed_val)
         # Require render cfg to be True
         self.connectUnity()
-        self.reset(True)
+        return self.reset(True)
 
     def update_rms(self):
         self.obs_rms = self.obs_rms_new
