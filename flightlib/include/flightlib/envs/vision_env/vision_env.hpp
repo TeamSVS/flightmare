@@ -134,6 +134,7 @@ class VisionEnv final : public EnvBase {
   Vector<4> ref_qx_;
   bool is_collision_;
   int num_collision;
+  Scalar xMax;
 
   // max detection range (meter)
   Scalar max_detection_range_;

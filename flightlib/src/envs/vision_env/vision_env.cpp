@@ -107,6 +107,7 @@ bool VisionEnv::reset(Ref<Vector<>> obs) {
 
   max_dist_ = goal_pos_ - quad_state_.p;
   num_collision = 0;
+  xMax = 0;
 
 //  std::cout << "Reset!\n";
 //  std::cout << "Starting Drone X:" << quad_state_.p(QS::POSX) << "\n";
@@ -309,7 +310,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
             (relative_pos_norm_[sort_idx] < max_detection_range_)
               ?  relative_pos_norm_[sort_idx] : max_detection_range_;
       
-    const Scalar dist_margin = 0.5;
+    const Scalar dist_margin = 0.25;   //0.5
     if (relative_pos_norm_[sort_idx] <=
         obstacle_radius_[sort_idx] + dist_margin) {
       // compute distance penalty
@@ -366,8 +367,8 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   //logger_.info( "angular velocit: " + str1 + " " + str2 + " " + str3);
  // logger_.info( "attitude : " + gg);
   //  change progress reward as survive reward
-  const Scalar total_reward =
-        (dist_reward + collision_penalty + attitude_penalty + survive_rew_) * time_percentage;
+   Scalar total_reward =
+        dist_reward + collision_penalty + attitude_penalty + survive_rew_;
     //lin_vel_reward + collision_penalty + ang_vel_penalty + survive_rew_;
    //string str = to_string(   quad_state_.v.norm()   );
   string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty)
@@ -375,6 +376,17 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
     to_string(attitude_penalty) + "  " + to_string(time_percentage) + "  " + to_string(total_reward);
   logger_.info(str);
   //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
+
+
+
+      //idea giuseppe
+  if(quad_state_.p(QS::POSX) > xMax){
+     xMax =  quad_state_.p(QS::POSX);
+  }
+  if (xMax - 0.5 > quad_state_.p(QS::POSX)){
+    total_reward = -1;
+  }
+
 
 
     // return all reward components for debug purposes
@@ -441,7 +453,7 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
 if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 10){
   reward = 10.0;
   //Scalar collisionPercentage = (maxCollision - num_collision) / (maxCollision);
-  reward = reward * time_percentage;
+  reward = reward;
   std::cout << "reached target position!\n";
   return true;
 }
