@@ -31,6 +31,7 @@ from stable_baselines3.common.vec_env.util import (copy_obs_dict, dict_to_obs,
 ######################################
 
 FLIGHTMAER_EXE = "RPG_Flightmare.x86_64"
+DEPTH_CHANNELS = 1
 RGB_CHANNELS = 3
 HEARTBEAT_INTERVAL = 4
 FLIGHTMAER_NEXT_FOLDER = "/flightrender/"
@@ -146,12 +147,12 @@ class FlightEnvVec(VecEnv, ABC):
         if 'depth' == self.mode or 'both' == self.mode:
             drone_spaces['depth'] = spaces.Box(
                 low=0., high=1.,
-                shape=(1, self.n_frames, self.img_height, self.img_width), dtype=np.float32
+                shape=(DEPTH_CHANNELS, self.n_frames, self.img_height, self.img_width), dtype=np.float32
             )
         if 'rgb' == self.mode or 'both' == self.mode:
             drone_spaces['rgb'] = spaces.Box(
                 low=0, high=255,
-                shape=(3, self.n_frames, self.img_height, self.img_width), dtype=np.uint8
+                shape=(RGB_CHANNELS, self.n_frames, self.img_height, self.img_width), dtype=np.uint8
             )
 
         self._observation_space = spaces.Dict(spaces=drone_spaces)
