@@ -5,7 +5,7 @@ environment:
   goal_vel: [ 3.0, 0.0, 0.0 ] # goal velicty for tracking vx, vy, vz
   max_detection_range: 10.0 # max obstacle detection range [m], obstacles outside this range will not be detected. The number of obstacles detected is fixed to 10, if less than 10 obstacles are within detectable range, the observation is padded with 10.0
   goal_pos: [ 80.0, 0.0, 5.0 ] #goal position to reach per axis
-  ref_qx: [ 0.998, 0.0, 0.068, 0 ] #the  x, y, z, w   [0.976, 0.0, 0.219, 0]
+  ref_qx: [ 0.976, 0.0, 0.219, 0] #the  x, y, z, w   [0.976, 0.0, 0.219, 0]    [ 0.998, 0.0, 0.068, 0 ]
 
 rewards:
   vel_coeff: -0.01
