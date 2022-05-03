@@ -616,7 +616,6 @@ bool VisionEnv::configDynamicObjects(const std::string &yaml_file) {
 
     std::string object_id = "Object" + std::to_string(i + 1);
     std::string prefab_id = cfg_node[object_id]["prefab"].as<std::string>();
-    prefab_id = "rpg_box0" + to_string(i % 3 + 1);
     std::shared_ptr<UnityObject> obj =
       std::make_shared<UnityObject>(object_id, prefab_id);
 
@@ -662,7 +661,7 @@ bool VisionEnv::configStaticObjects(const std::string &csv_file) {
     // Read column 0 for time
     std::string object_id = "StaticObject" + std::to_string(i + 1);
     std::string prefab_id = (std::string)row[0];
-    prefab_id = "rpg_box03";
+    //prefab_id = "rpg_box03";
     //
     std::shared_ptr<UnityObject> obj =
       std::make_shared<UnityObject>(object_id, prefab_id);
