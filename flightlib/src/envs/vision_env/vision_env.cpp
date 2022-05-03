@@ -309,7 +309,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
             (relative_pos_norm_[sort_idx] < max_detection_range_)
               ?  relative_pos_norm_[sort_idx] : max_detection_range_;
       
-    const Scalar dist_margin = 0.5;
+    const Scalar dist_margin = 5.0;
     if (relative_pos_norm_[sort_idx] <=
         obstacle_radius_[sort_idx] + dist_margin) {
       // compute distance penalty
@@ -321,9 +321,15 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
 
     idx += 1;
   }
+  Scalar velocity = quad_state_.v.norm();
+  if(velocity > 8 ){
+      collision_penalty *= log(1 + quad_state_.v.norm()) * collision_coeff_ / (total_detectable_obstacles + 1);
+  }else{
+    collision_penalty *=  collision_coeff_ / (total_detectable_obstacles + 1);
+  }
   
-  collision_penalty *= log(1 + quad_state_.v.norm()) * collision_coeff_ / (total_detectable_obstacles + 1);
-   //logger_.info( to_string(  collision_penalty  ));
+  
+   //logger_.info( to_string(  velocity  ));
   
   // - tracking the difference between max and actua distances
     //Vector<3> actua_dist = goal_pos_ - quad_state_.p;
@@ -351,7 +357,15 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
    qi = quad_state_.qx[i] - ref_qx_[i];
    attitude_penalty += qi * qi; 
  }
- attitude_penalty = attitude_ori_coeff_ * sqrt(attitude_penalty);
+
+//logger_.info(  to_string(   0.001 * std::exp(attitude_penalty) );
+  if(attitude_penalty < attitude_ori_coeff_ && attitude_penalty > 0){
+        attitude_penalty = 0;
+ }else{
+        attitude_penalty = -0.21 * std::exp(0.6 * attitude_penalty);
+ }
+// attitude_penalty = max(0.01, 0.125 * pow(attitude_penalty, 1.681));
+ //logger_.info(  to_string(   attitude_penalty  ) );
   //Scalar qx = quad_state_.qx[0] - ref_qx_[0];
   //Scalar qz = quad_state_.qx[2] - ref_qx_[2];
   //Scalar attitude_penalty = attitude_ori_coeff_ * sqrt(qx * qx + qz * qz);
@@ -372,7 +386,8 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
    //string str = to_string(   quad_state_.v.norm()   );
   string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty)
                   +  "  " +
-    to_string(attitude_penalty) + "  " + to_string(time_percentage) + "  " + to_string(total_reward);
+    to_string(attitude_penalty) + "  " + to_string(time_percentage) + "  " + to_string(total_reward)
+    + "  " + to_string(velocity);
   logger_.info(str);
   //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
 
@@ -396,7 +411,7 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
 
  //simulation time out
  if (cmd_.t >= max_t_ - sim_dt_) {
-   reward = -10;
+   reward = -1.0;
    std::cout << "Timeout!\n";
    return true;
  }
