@@ -1,5 +1,8 @@
 import os
 import pickle
+import signal
+import subprocess
+import sys
 import threading
 import time
 from abc import ABC
@@ -33,11 +36,11 @@ from stable_baselines3.common.vec_env.util import (copy_obs_dict, dict_to_obs,
 ######################################
 
 FLIGHTMAER_EXE = "RPG_Flightmare.x86_64"
+DEPTH_CHANNELS = 1
 RGB_CHANNELS = 3
-DEPTH_CHANNELS =1
+DEPTH_CHANNELS = 1
 HEARTBEAT_INTERVAL = 4
 FLIGHTMAER_NEXT_FOLDER = "/flightrender/"
-ALLOWED_USER_KILLER = ["giuseppe", "cam", "sara", "zaks", "students"]
 
 
 ######################################
@@ -95,7 +98,7 @@ class FlightEnvVec(VecEnv, ABC):
 
         self.port1 = random.randint(1025, 65534)
         self.port2 = random.randint(1025, 65534)
-
+        self._flightmare_process = None
         self.render_id = 0
         self.stacked_drone_state = []
         self.stacked_depth_imgs = []
@@ -150,18 +153,20 @@ class FlightEnvVec(VecEnv, ABC):
 
         drone_spaces = {'state': spaces.Box(
             low=-1., high=1.,
-            shape=(self.num_envs,13, self.n_frames), dtype=np.float32
+            shape=(self.num_envs, 13, self.n_frames), dtype=np.float32
         )}
 
         if 'depth' == self.mode or 'both' == self.mode:
             drone_spaces['depth'] = spaces.Box(
                 low=0., high=1.,
-                shape=(self.num_envs,DEPTH_CHANNELS, self.n_frames, self.img_height, self.img_width), dtype=np.float32
+                shape=(self.num_envs, DEPTH_CHANNELS, self.n_frames, self.img_height, self.img_width), dtype=np.float32
+
             )
         if 'rgb' == self.mode or 'both' == self.mode:
             drone_spaces['rgb'] = spaces.Box(
                 low=0, high=255,
-                shape=(self.num_envs,RGB_CHANNELS, self.n_frames, self.img_height, self.img_width), dtype=np.uint8
+                shape=(self.num_envs, RGB_CHANNELS, self.n_frames, self.img_height, self.img_width), dtype=np.uint8
+
             )
 
         self._observation_space = spaces.Dict(spaces=drone_spaces)
@@ -218,25 +223,29 @@ class FlightEnvVec(VecEnv, ABC):
 
         self.wrapper.setSeed(random.randint(1, 10000))
 
-    def spawn_flightmare(self, input_port=0, output_port=0):
+    def spawn_flightmare(self, input_port=10253, output_port=10254):
         if input_port > 0 and output_port > 0:
             ports = " -input-port {0} -output-port {1}".format(input_port, output_port)
         else:
             ports = ""
-        os.system(os.environ["FLIGHTMARE_PATH"] + FLIGHTMAER_NEXT_FOLDER + FLIGHTMAER_EXE + ports + "&")
+        try:
+            self._flightmare_process = subprocess.Popen(
+                [os.environ["FLIGHTMARE_PATH"] + FLIGHTMAER_NEXT_FOLDER + FLIGHTMAER_EXE + ports],
+                stdout=subprocess.PIPE,
+                shell=True, preexec_fn=os.setsid)
+        except Exception as e:
+            logging.error(e)
+            sys.exit(1)
+
+    def kill_flightmare(self):
+        os.killpg(os.getpgid(self._flightmare_process.pid), signal.SIGTERM)
+        self._flightmare_process = None
 
     def change_obstacles(self, seed=0, difficult="medium", level=0, random=False):
         # TODO Random not yet implemented
 
         self.close()
-        for proc in psutil.process_iter():
-            if proc.name() == FLIGHTMAER_EXE:
-                # if proc.username() == os.environ.get("USERNAME"):
-                if psutil.Process(proc.pid).username() in ALLOWED_USER_KILLER:
-                    print("KILLED")
-                    proc.kill()
-
-        # time.sleep(10) #is this usefull?
+        self.kill_flightmare()
         self.spawn_flightmare()
 
         self.env_cfg["environment"]["level"] = difficult
@@ -250,7 +259,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.seed(self.seed_val)
         # Require render cfg to be True
         self.connectUnity()
-        self.reset(True)
+        return self.reset(True)
 
     def update_rms(self):
         self.obs_rms = self.obs_rms_new
@@ -489,6 +498,7 @@ class FlightEnvVec(VecEnv, ABC):
         return ret
 
     def close(self):
+        self.kill_flightmare()
         self.stopFlag.set()
         self.reset()
         self.disconnectUnity()
