@@ -362,7 +362,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
  //attitude_penalty = attitude_ori_coeff_ * sqrt(attitude_penalty);
    logger_.info(  to_string(sqrt(attitude_penalty)) );
  Scalar attitudeTreshHold = 0.24/0.0274*(10+ quad_state_.v.norm() * quad_state_.v.norm() + 1);
- if(sqrt(attitude_penalty) > attitudeTreshHold){
+ if(attitude_penalty > attitudeTreshHold){
    attitude_penalty = -0.035*std::exp(0.6*sqrt(attitude_penalty));
  }else{
    attitude_penalty = 0;
