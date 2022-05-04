@@ -309,23 +309,29 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
          (relative_pos_norm_[sort_idx] > 0) &&
             (relative_pos_norm_[sort_idx] < max_detection_range_)
               ?  relative_pos_norm_[sort_idx] : max_detection_range_;
-      
-    const Scalar dist_margin = 0.25;   //0.5
+
+    const Scalar dist_margin = 3;   //0.5
     if (relative_pos_norm_[sort_idx] <=
         obstacle_radius_[sort_idx] + dist_margin) {
       // compute distance penalty
       collision_penalty += std::exp(-0.99 * relative_dist);
       total_detectable_obstacles += 1;
-      
-     
+
+
     }
 
     idx += 1;
   }
-  
-  collision_penalty *= log(1 + quad_state_.v.norm()) * collision_coeff_ / (total_detectable_obstacles + 1);
+
+  if(quad_state_.v.norm() > 10){
+    collision_penalty *= log(1 + quad_state_.v.norm()) * collision_coeff_ / (total_detectable_obstacles + 1);
+  }else{
+    collision_penalty = 0;
+  }
+
+
    //logger_.info( to_string(  collision_penalty  ));
-  
+
   // - tracking the difference between max and actua distances
     //Vector<3> actua_dist = goal_pos_ - quad_state_.p;
   //Scalar dist_reward = (max_dist_+ actua_dist).norm() * (max_dist_- actua_dist).norm() / 10000;
@@ -350,14 +356,24 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
  Scalar qi = 0;
  for (int i = 0; i < 4; i++){
    qi = quad_state_.qx[i] - ref_qx_[i];
-   attitude_penalty += qi * qi; 
+   attitude_penalty += qi * qi;
  }
- attitude_penalty = attitude_ori_coeff_ * sqrt(attitude_penalty);
+ //sum of attitude ranges from 0 to 3.7
+ //attitude_penalty = attitude_ori_coeff_ * sqrt(attitude_penalty);
+   logger_.info(  to_string(sqrt(attitude_penalty)) );
+ Scalar attitudeTreshHold = 0.24/0.0274*(10+ quad_state_.v.norm() * quad_state_.v.norm() + 1);
+ if(sqrt(attitude_penalty) > attitudeTreshHold){
+   attitude_penalty = -0.035*std::exp(0.6*sqrt(attitude_penalty));
+ }else{
+   attitude_penalty = 0;
+ }
+
+
   //Scalar qx = quad_state_.qx[0] - ref_qx_[0];
   //Scalar qz = quad_state_.qx[2] - ref_qx_[2];
   //Scalar attitude_penalty = attitude_ori_coeff_ * sqrt(qx * qx + qz * qz);
     //for (int i = 0; i < 4; i++)
-   //gg += to_string(  (quad_old_state_.qx - ref_qx_) )[i]) + " "; 
+   //gg += to_string(  (quad_old_state_.qx - ref_qx_) )[i]) + " ";
    // gg = to_string(  );
    //gg += to_string(qx) + " " + to_string(qz) + " " ;
 
@@ -379,13 +395,13 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
 
 
 
-      //idea giuseppe
-  if(quad_state_.p(QS::POSX) > xMax){
-     xMax =  quad_state_.p(QS::POSX);
-  }
-  if (xMax - 0.5 > quad_state_.p(QS::POSX)){
-    total_reward = -1;
-  }
+  //     //idea giuseppe
+  // if(quad_state_.p(QS::POSX) > xMax){
+  //    xMax =  quad_state_.p(QS::POSX);
+  // }
+  // if (xMax - 0.5 > quad_state_.p(QS::POSX)){
+  //   total_reward = -1;
+  // }
 
 
 
@@ -420,8 +436,8 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
                  quad_state_.p(QS::POSX) <= world_box_[1] - safty_threshold;
   bool y_valid = quad_state_.p(QS::POSY) >= world_box_[2] + safty_threshold &&
                  quad_state_.p(QS::POSY) <= world_box_[3] - safty_threshold;
-  bool z_valid = quad_state_.x(QS::POSZ) >= world_box_[4] + safty_threshold &&
-                 quad_state_.x(QS::POSZ) <= world_box_[5] - safty_threshold;
+  bool z_valid = quad_state_.p(QS::POSZ) >= world_box_[4] + safty_threshold &&
+                 quad_state_.p(QS::POSZ) <= world_box_[5] - safty_threshold;
  if (!x_valid || !y_valid || !z_valid) {
 //    std::cout << "Drone X:" << quad_state_.p(QS::POSX) << "\n";
 //    std::cout << "Drone Y:" << quad_state_.p(QS::POSY) << "\n";
@@ -538,7 +554,7 @@ bool VisionEnv::loadParam(const YAML::Node &cfg) {
       cfg["environment"]["goal_pos"].as<std::vector<Scalar>>();
        goal_pos_ = Vector<3>(goal_pos_vec.data());
 
-    std::vector<Scalar> ref_qx = 
+    std::vector<Scalar> ref_qx =
       cfg["environment"]["ref_qx"].as<std::vector<Scalar>>();
       ref_qx_= Vector<4>(ref_qx.data());
 
