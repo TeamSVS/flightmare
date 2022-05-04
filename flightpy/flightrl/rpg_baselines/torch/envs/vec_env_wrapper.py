@@ -1,5 +1,8 @@
 import os
 import pickle
+import signal
+import subprocess
+import sys
 import threading
 import time
 from abc import ABC
@@ -35,7 +38,6 @@ DEPTH_CHANNELS = 1
 RGB_CHANNELS = 3
 HEARTBEAT_INTERVAL = 4
 FLIGHTMAER_NEXT_FOLDER = "/flightrender/"
-ALLOWED_USER_KILLER = ["giuseppe", "cam", "sara", "zaks", "students"]
 
 
 ######################################
@@ -90,6 +92,7 @@ class PingThread(Thread):
 
 class FlightEnvVec(VecEnv, ABC):
     def __init__(self, env_cfg, name, mode, n_frames=3):
+        self._flightmare_process = None
         self.render_id = 0
         self.stacked_drone_state = []
         self.stacked_depth_imgs = []
@@ -207,25 +210,29 @@ class FlightEnvVec(VecEnv, ABC):
 
         self.wrapper.setSeed(self.seed_val)
 
-    def spawn_flightmare(self, input_port=0, output_port=0):
+    def spawn_flightmare(self, input_port=10253, output_port=10254):
         if input_port > 0 and output_port > 0:
             ports = " -input-port {0} -output-port {1}".format(input_port, output_port)
         else:
             ports = ""
-        os.system(os.environ["FLIGHTMARE_PATH"] + FLIGHTMAER_NEXT_FOLDER + FLIGHTMAER_EXE + ports + "&")
+        try:
+            self._flightmare_process = subprocess.Popen(
+                [os.environ["FLIGHTMARE_PATH"] + FLIGHTMAER_NEXT_FOLDER + FLIGHTMAER_EXE + ports],
+                stdout=subprocess.PIPE,
+                shell=True, preexec_fn=os.setsid)
+        except Exception as e:
+            logging.error(e)
+            sys.exit(1)
+
+    def kill_flightmare(self):
+        os.killpg(os.getpgid(self._flightmare_process.pid), signal.SIGTERM)
+        self._flightmare_process = None
 
     def change_obstacles(self, seed=0, difficult="medium", level=0, random=False):
         # TODO Random not yet implemented
 
         self.close()
-        for proc in psutil.process_iter():
-            if proc.name() == FLIGHTMAER_EXE:
-                # if proc.username() == os.environ.get("USERNAME"):
-                if psutil.Process(proc.pid).username() in ALLOWED_USER_KILLER:
-                    print("KILLED")
-                    proc.kill()
-
-        # time.sleep(10) #is this usefull?
+        self.kill_flightmare()
         self.spawn_flightmare()
 
         self.env_cfg["environment"]["level"] = difficult
