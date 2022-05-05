@@ -24,8 +24,8 @@ rgb_camera:
   t_BC: [ 0.0, 0.0, 0.3 ] # translational vector of the camera with repect to the body frame
   r_BC: [ 0.0, 0.0, -90 ] # rotational angle (roll, pitch, yaw) of the camera in degree.
   channels: 3
-  width: 10
-  height: 10
+  width: 224
+  height: 224
   fov: 70.0
   enable_depth: yes
   enable_segmentation: no
@@ -42,7 +42,7 @@ simulation:
   sim_dt: 0.02
   max_t: 20.0
   num_envs: 1
-  num_threads: 10
+  num_threads: 5
   heartbeat: yes
   fakeQuadrotorScaleSize: 1
 

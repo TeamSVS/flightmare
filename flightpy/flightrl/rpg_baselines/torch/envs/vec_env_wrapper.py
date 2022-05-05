@@ -118,6 +118,7 @@ class FlightEnvVec(VecEnv, ABC):
         self._reward = None
         self.mode = mode  # rgb, depth, both
         self.seed_val = 42
+        self.wrapper.setSeed(42)
         self._heartbeat = True if env_cfg["simulation"]["heartbeat"] == "yes" else False
         self.obs_ranges_dic = {0: [0, 10],
                                1: [-20, 80],
@@ -220,7 +221,7 @@ class FlightEnvVec(VecEnv, ABC):
         if seed != 0:
             self.seed_val = seed
 
-        self.wrapper.setSeed(random.randint(1, 10000))
+        self.wrapper.setSeed(42)
 
     def spawn_flightmare(self, input_port=10253, output_port=10254):
         if input_port > 0 and output_port > 0:
