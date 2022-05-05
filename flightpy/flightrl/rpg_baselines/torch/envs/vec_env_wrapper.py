@@ -108,7 +108,6 @@ class FlightEnvVec(VecEnv, ABC):
         self.env_cfg = env_cfg
         self.stopFlag = Event()
         self.thread = PingThread(self.stopFlag, self)
-
         self.env_cfg["unity"]["input_port"] = self.port1
         self.env_cfg["unity"]["output_port"] = self.port2
         self.wrapper = VisionEnv_v1(dump(self.env_cfg, Dumper=RoundTripDumper), False)
@@ -238,8 +237,14 @@ class FlightEnvVec(VecEnv, ABC):
             sys.exit(1)
 
     def kill_flightmare(self):
-        os.killpg(os.getpgid(self._flightmare_process.pid), signal.SIGTERM)
-        self._flightmare_process = None
+        print("sdaffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+        if self._flightmare_process is not None and self._flightmare_process.pid is not None:
+
+                os.killpg(self._flightmare_process.pid, signal.SIGTERM)
+                self._flightmare_process.terminate()
+                self._flightmare_process = None
+
+
 
     def change_obstacles(self, seed=0, difficult="medium", level=0, random=False):
         # TODO Random not yet implemented
@@ -498,10 +503,11 @@ class FlightEnvVec(VecEnv, ABC):
         return ret
 
     def close(self):
-        self.kill_flightmare()
+
         self.stopFlag.set()
         self.reset()
         self.disconnectUnity()
+        self.kill_flightmare()
         self.wrapper.close()
 
     def connectUnity(self):
