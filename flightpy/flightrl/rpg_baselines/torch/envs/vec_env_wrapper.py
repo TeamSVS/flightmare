@@ -324,20 +324,23 @@ class FlightEnvVec(VecEnv, ABC):
             else:
 
                 step = drone_state[i][1] - self.maxPos[i]
-                if step < 0:
-                    step = 0
-                    self.maxPos[i] = drone_state[i][1]
-                w = drone_state[i][4]
-                y = drone_state[i][5]
-                z = drone_state[i][6]
-                x = drone_state[i][7]
-                baseEulerAngle = self.euler_from_quaternion(1, 0, 0, 0)
-                eulerAngle = self.euler_from_quaternion(x, y, z, w)
-                divergence_pentalty = 0
-                if baseEulerAngle[0] != eulerAngle[0]:
-                    divergence_pentalty = eulerAngle[0] / baseEulerAngle[0]
-                self.myReward[i] = step - divergence_pentalty
-
+                if step > -1:
+                    if step < 0:
+                        step = 0
+                    else:
+                        self.maxPos[i] = drone_state[i][1]
+                    w = drone_state[i][4]
+                    y = drone_state[i][5]
+                    z = drone_state[i][6]
+                    x = drone_state[i][7]
+                    baseEulerAngle = self.euler_from_quaternion(1, 0, 0, 0)
+                    eulerAngle = self.euler_from_quaternion(x, y, z, w)
+                    divergence_pentalty = 0
+                    if baseEulerAngle[0] != eulerAngle[0]:
+                        divergence_pentalty = eulerAngle[0] / baseEulerAngle[0]
+                    self.myReward[i] = step - divergence_pentalty
+                else:
+                    self.myReward = -1
                 self.totalReward[i] += self.myReward[i]
         return info
 
