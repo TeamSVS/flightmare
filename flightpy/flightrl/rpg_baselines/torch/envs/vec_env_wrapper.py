@@ -91,7 +91,7 @@ class PingThread(Thread):
 
 
 class FlightEnvVec(VecEnv, ABC):
-    def __init__(self, env_cfg, name, mode, n_frames=3):
+    def __init__(self, env_cfg, name, mode, n_frames=3, in_port=0, out_port=0):
         self._flightmare_process = None
         self.render_id = 0
         self.stacked_drone_state = []
@@ -102,6 +102,15 @@ class FlightEnvVec(VecEnv, ABC):
         self.env_cfg = env_cfg
         self.stopFlag = Event()
         self.thread = PingThread(self.stopFlag, self)
+        if in_port == 0 or out_port == 0:
+            self.in_port = env_cfg["unity"]["input_port"]
+            self.out_port = env_cfg["unity"]["output_port"]
+        else:
+            self.in_port = in_port
+            self.out_port = out_port
+            env_cfg["unity"]["input_port"] = in_port
+            env_cfg["unity"]["output_port"] = out_port
+
         self.wrapper = VisionEnv_v1(dump(self.env_cfg, Dumper=RoundTripDumper), False)
         self.is_unity_connected = False
         self.var = None
@@ -203,6 +212,7 @@ class FlightEnvVec(VecEnv, ABC):
         #  state normalization
         self.obs_rms = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
         self.obs_rms_new = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
+        self.spawn_flightmare(self.in_port, self.out_port)
 
     def seed(self, seed=0):
         if seed != 0:
@@ -210,11 +220,13 @@ class FlightEnvVec(VecEnv, ABC):
 
         self.wrapper.setSeed(self.seed_val)
 
-    def spawn_flightmare(self, input_port=10253, output_port=10254):
+    def spawn_flightmare(self, input_port=10277, output_port=10278):
         if input_port > 0 and output_port > 0:
             ports = " -input-port {0} -output-port {1}".format(input_port, output_port)
+            self.in_port = input_port
+            self.out_port = output_port
         else:
-            ports = ""
+            ports = " -input-port {0} -output-port {1}".format(self.in_port, self.out_port)
         try:
             self._flightmare_process = subprocess.Popen(
                 [os.environ["FLIGHTMARE_PATH"] + FLIGHTMAER_NEXT_FOLDER + FLIGHTMAER_EXE + ports],
