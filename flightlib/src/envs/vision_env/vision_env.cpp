@@ -294,6 +294,23 @@ bool VisionEnv::simDynamicObstacles(const Scalar dt) {
   }
   return true;
 }
+//
+// std::vector<Scalar> Minus(std::vector<float> v1, std::vector<float> v2){
+//     std::vector<Scalar> v;
+//     for(int i = 0; i < v1.size(); i++){
+//         v[i] = v2[i] - v1[i];
+//     }
+//     return v;
+// }
+
+Scalar getDistance(Vector<3> v1, Vector<3> v2){
+  Scalar len = 0;
+  for(int i = 0; i < 3; i++){
+      len += (v2[i] - v1[i]) * (v2[i] - v1[i]);
+  }
+  return sqrt(len);
+}
+
 
 bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   // ---------------------- reward function design
@@ -309,23 +326,26 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
          (relative_pos_norm_[sort_idx] > 0) &&
             (relative_pos_norm_[sort_idx] < max_detection_range_)
               ?  relative_pos_norm_[sort_idx] : max_detection_range_;
-      
-    const Scalar dist_margin = 0.25;   //0.5
+
+    const Scalar dist_margin = 3;   //0.5
     if (relative_pos_norm_[sort_idx] <=
         obstacle_radius_[sort_idx] + dist_margin) {
       // compute distance penalty
       collision_penalty += std::exp(-0.99 * relative_dist);
       total_detectable_obstacles += 1;
-      
-     
+
+
     }
 
     idx += 1;
   }
-  
-  collision_penalty *= log(1 + quad_state_.v.norm()) * collision_coeff_ / (total_detectable_obstacles + 1);
+
+  if(quad_state_.v.norm() > 10)
+    collision_penalty *= log(1 + quad_state_.v.norm()) * collision_coeff_ / (total_detectable_obstacles + 1);
+  else
+    collision_penalty = 0;
    //logger_.info( to_string(  collision_penalty  ));
-  
+
   // - tracking the difference between max and actua distances
     //Vector<3> actua_dist = goal_pos_ - quad_state_.p;
   //Scalar dist_reward = (max_dist_+ actua_dist).norm() * (max_dist_- actua_dist).norm() / 10000;
@@ -346,18 +366,43 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   string gg = "";
  // string str[4];
  //Scalar qx[4];
- Scalar attitude_penalty = 0;
- Scalar qi = 0;
- for (int i = 0; i < 4; i++){
-   qi = quad_state_.qx[i] - ref_qx_[i];
-   attitude_penalty += qi * qi; 
- }
- attitude_penalty = attitude_ori_coeff_ * sqrt(attitude_penalty);
+
+
+  Scalar attitude_penalty = 0;
+ // Scalar qi = 0;
+ // for (int i = 0; i < 4; i++){
+ //   qi = quad_state_.qx[i] - ref_qx_[i];
+ //   attitude_penalty += qi * qi;
+ // }
+ Vector<3> pos_new, pos_old;
+ pos_new =  quad_state_.p;
+ pos_old = quad_old_state_.p;
+
+ Vector<3> drone_dir = pos_new - pos_old;
+ drone_dir /= getDistance(pos_old, pos_new);
+
+ Scalar a = quad_state_.qx(QS::ATTW);
+ Scalar b = quad_state_.qx(QS::ATTX);
+ Scalar c = quad_state_.qx(QS::ATTY);
+ Scalar d = quad_state_.qx(QS::ATTZ);
+ // Matrix<double, 3, 3> qx_rot_matrix = {a * a + b * b - c * c - d * d, 2 * b * c - 2 * a * d, 2 * b * d + 2 * a * c,
+ //                   2 * b * c + 2 * a * d, a * a - b * b + c * c - d * d, 2 * c * d - 2 * a * b,
+ //                   2 * b * d - 2 * a * c, 2 * c * d + 2 * a * b, a * a - b * b - c * c + d * d};
+
+/*Eigen::Matrix3f qx_rot_matrix;
+        qx_rot_matrix << a * a + b * b - c * c - d * d, 2 * b * c - 2 * a * d, 2 * b * d + 2 * a * c,
+                   2 * b * c + 2 * a * d, a * a - b * b + c * c - d * d, 2 * c * d - 2 * a * b,
+                  2 * b * d - 2 * a * c, 2 * c * d + 2 * a * b, a * a - b * b - c * c + d * d;*/
+ double qx_rot_matrix[3][3]={{a*a + b*b - c*c - d*d, 2 * b * c - 2 * a * d, 2 * b * d + 2 * a * c}, {2 * b * c + 2 * a * d, a*a - b*b + c *c- d *d, 2 * c * d - 2 * a * b},{2 * b * d - 2 * a * c, 2 * c * d + 2 * a * b, a*a - b *b - c *c + d *d}};
+ vector<3> camera_dir = qx_rot_matrix * drone_dir;
+
+
+ // attitude_penalty = attitude_ori_coeff_ * sqrt(attitude_penalty);
   //Scalar qx = quad_state_.qx[0] - ref_qx_[0];
   //Scalar qz = quad_state_.qx[2] - ref_qx_[2];
   //Scalar attitude_penalty = attitude_ori_coeff_ * sqrt(qx * qx + qz * qz);
     //for (int i = 0; i < 4; i++)
-   //gg += to_string(  (quad_old_state_.qx - ref_qx_) )[i]) + " "; 
+   //gg += to_string(  (quad_old_state_.qx - ref_qx_) )[i]) + " ";
    // gg = to_string(  );
    //gg += to_string(qx) + " " + to_string(qz) + " " ;
 
@@ -378,14 +423,14 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
 
 
-
-      //idea giuseppe
-  if(quad_state_.p(QS::POSX) > xMax){
-     xMax =  quad_state_.p(QS::POSX);
-  }
-  if (xMax - 0.5 > quad_state_.p(QS::POSX)){
-    total_reward = -1;
-  }
+  //
+  //     //idea giuseppe
+  // if(quad_state_.p(QS::POSX) > xMax){
+  //    xMax =  quad_state_.p(QS::POSX);
+  // }
+  // if (xMax - 0.5 > quad_state_.p(QS::POSX)){
+  //   total_reward = -1;
+  // }
 
 
 
@@ -538,7 +583,7 @@ bool VisionEnv::loadParam(const YAML::Node &cfg) {
       cfg["environment"]["goal_pos"].as<std::vector<Scalar>>();
        goal_pos_ = Vector<3>(goal_pos_vec.data());
 
-    std::vector<Scalar> ref_qx = 
+    std::vector<Scalar> ref_qx =
       cfg["environment"]["ref_qx"].as<std::vector<Scalar>>();
       ref_qx_= Vector<4>(ref_qx.data());
 
@@ -613,7 +658,7 @@ bool VisionEnv::configDynamicObjects(const std::string &yaml_file) {
 
     std::string object_id = "Object" + std::to_string(i + 1);
     std::string prefab_id = cfg_node[object_id]["prefab"].as<std::string>();
-    prefab_id = "rpg_box0" + to_string(i % 3 + 1);
+  //  prefab_id = "rpg_box0" + to_string(i % 3 + 1);
     std::shared_ptr<UnityObject> obj =
       std::make_shared<UnityObject>(object_id, prefab_id);
 
@@ -659,7 +704,7 @@ bool VisionEnv::configStaticObjects(const std::string &csv_file) {
     // Read column 0 for time
     std::string object_id = "StaticObject" + std::to_string(i + 1);
     std::string prefab_id = (std::string)row[0];
-    prefab_id = "rpg_box03";
+    //prefab_id = "rpg_box03";
     //
     std::shared_ptr<UnityObject> obj =
       std::make_shared<UnityObject>(object_id, prefab_id);
