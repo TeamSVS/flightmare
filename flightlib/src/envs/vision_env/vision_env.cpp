@@ -415,8 +415,8 @@ q.z() = quad_state_.qx(QS::ATTZ);
 q.w() = quad_state_.qx(QS::ATTW);
 
 Eigen::Matrix3d qx_rot_matrix = q.toRotationMatrix();
-
- Eigen::Vector3d camera_dir = qx_rot_matrix * drone_dir;
+Eigen::Vector3d origin(1,0,0);
+ Eigen::Vector3d camera_dir = qx_rot_matrix * origin;
 
  // for(int i = 0; i < 3; i++)
  //  gg += " " + to_string( camera_dir[i] );
