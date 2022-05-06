@@ -303,14 +303,23 @@ bool VisionEnv::simDynamicObstacles(const Scalar dt) {
 //     return v;
 // }
 
-Scalar getDistance(Vector<3> v1, Vector<3> v2){
-  Scalar len = 0;
+static double getDistance(Vector<3> v1, Vector<3> v2){
+  double len = 0;
   for(int i = 0; i < 3; i++){
       len += (v2[i] - v1[i]) * (v2[i] - v1[i]);
   }
   return sqrt(len);
 }
 
+static Scalar dotProduct(Vector<3> vect_A, Vector<3> vect_B)
+{
+
+    Scalar product = 0;
+    // Loop for calculate dot product
+    for (int i = 0; i < 3; i++)
+        product = product + vect_A[i] * vect_B[i];
+    return product;
+}
 
 bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   // ---------------------- reward function design
@@ -368,18 +377,19 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
  //Scalar qx[4];
 
 
-  Scalar attitude_penalty = 0;
+
  // Scalar qi = 0;
  // for (int i = 0; i < 4; i++){
  //   qi = quad_state_.qx[i] - ref_qx_[i];
  //   attitude_penalty += qi * qi;
  // }
- Vector<3> pos_new, pos_old;
- pos_new =  quad_state_.p;
- pos_old = quad_old_state_.p;
+ // Vector<3> pos_new, pos_old;
+ // pos_new =  quad_state_.p;
+ // pos_old = quad_old_state_
+ Eigen::Vector3d pos_new(quad_state_.p(QS::POSX), quad_state_.p(QS::POSY), quad_state_.p(QS::POSZ));
+ Eigen::Vector3d pos_old(quad_old_state_.p(QS::POSX), quad_old_state_.p(QS::POSY), quad_old_state_.p(QS::POSZ));
 
- Vector<3> drone_dir = pos_new - pos_old;
- drone_dir /= getDistance(pos_old, pos_new);
+ Eigen::Vector3d drone_dir = (pos_new - pos_old) / getDistance(quad_old_state_.p, quad_state_.p);
 
  Scalar a = quad_state_.qx(QS::ATTW);
  Scalar b = quad_state_.qx(QS::ATTX);
@@ -389,12 +399,20 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
  //                   2 * b * c + 2 * a * d, a * a - b * b + c * c - d * d, 2 * c * d - 2 * a * b,
  //                   2 * b * d - 2 * a * c, 2 * c * d + 2 * a * b, a * a - b * b - c * c + d * d};
 
-/*Eigen::Matrix3f qx_rot_matrix;
+Eigen::Matrix3d qx_rot_matrix;
         qx_rot_matrix << a * a + b * b - c * c - d * d, 2 * b * c - 2 * a * d, 2 * b * d + 2 * a * c,
                    2 * b * c + 2 * a * d, a * a - b * b + c * c - d * d, 2 * c * d - 2 * a * b,
-                  2 * b * d - 2 * a * c, 2 * c * d + 2 * a * b, a * a - b * b - c * c + d * d;*/
- double qx_rot_matrix[3][3]={{a*a + b*b - c*c - d*d, 2 * b * c - 2 * a * d, 2 * b * d + 2 * a * c}, {2 * b * c + 2 * a * d, a*a - b*b + c *c- d *d, 2 * c * d - 2 * a * b},{2 * b * d - 2 * a * c, 2 * c * d + 2 * a * b, a*a - b *b - c *c + d *d}};
- vector<3> camera_dir = qx_rot_matrix * drone_dir;
+                  2 * b * d - 2 * a * c, 2 * c * d + 2 * a * b, a * a - b * b - c * c + d * d;
+ // double qx_rot_matrix[3][3]=
+ // {{a*a + b*b - c*c - d*d, 2 * b * c - 2 * a * d, 2 * b * d + 2 * a * c},
+ //  {2 * b * c + 2 * a * d, a*a - b*b + c *c- d *d, 2 * c * d - 2 * a * b},
+ //  {2 * b * d - 2 * a * c, 2 * c * d + 2 * a * b, a*a - b *b - c *c + d*d}};
+ Eigen::Vector3d camera_dir = qx_rot_matrix * drone_dir;
+ //dot product= 1 if same dir, -1 if opposite dir, 0 if normal diction (the vectors are normal to each other)
+//Scalar attitude_reward = 0;
+Scalar attitude_reward = drone_dir.dot(camera_dir);
+//attitude_reward= - (1-dotProduct(drone_dir, camera_dir));
+logger_.info( to_string(attitude_reward) );
 
 
  // attitude_penalty = attitude_ori_coeff_ * sqrt(attitude_penalty);
@@ -413,13 +431,13 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
  // logger_.info( "attitude : " + gg);
   //  change progress reward as survive reward
    Scalar total_reward =
-        dist_reward + collision_penalty + attitude_penalty + survive_rew_;
+        dist_reward + survive_rew_ + attitude_reward;
     //lin_vel_reward + collision_penalty + ang_vel_penalty + survive_rew_;
    //string str = to_string(   quad_state_.v.norm()   );
   string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty)
                   +  "  " +
-    to_string(attitude_penalty) + "  " + to_string(time_percentage) + "  " + to_string(total_reward);
-  logger_.info(str);
+    to_string(attitude_reward) + "  " + to_string(time_percentage) + "  " + to_string(total_reward);
+//  logger_.info(str);
   //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
 
 
