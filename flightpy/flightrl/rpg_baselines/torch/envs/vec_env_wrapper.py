@@ -337,8 +337,10 @@ class FlightEnvVec(VecEnv, ABC):
                     baseEulerAngle = self.euler_from_quaternion(1, 0, 0, 0)
                     eulerAngle = self.euler_from_quaternion(x, y, z, w)
                     divergence_pentalty = 0
-                    if baseEulerAngle[0] != eulerAngle[0]:
-                        divergence_pentalty = eulerAngle[0] / baseEulerAngle[0]
+                    if  eulerAngle[0]>(baseEulerAngle[0]/2):
+                        divergence_pentalty = (eulerAngle[0]-(baseEulerAngle[0]/2)) / baseEulerAngle[0]
+                    else:
+                        divergence_pentalty = (eulerAngle[0]) / baseEulerAngle[0]
                     self.myReward[i] = step - divergence_pentalty
                 else:
                     self.myReward = -1
