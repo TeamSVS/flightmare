@@ -330,9 +330,10 @@ class FlightEnvVec(VecEnv, ABC):
                     else:
                         self.maxPos[i] = drone_state[i][1]
                     w = drone_state[i][4]
-                    y = drone_state[i][5]
-                    z = drone_state[i][6]
-                    x = drone_state[i][7]
+                    x = drone_state[i][5]
+                    y = drone_state[i][6]
+                    z = drone_state[i][7]
+#SONG RAGAZZO FANTASTICO SIIIIIIIIIIIIIIIIIIIIIII
                     baseEulerAngle = self.euler_from_quaternion(1, 0, 0, 0)
                     eulerAngle = self.euler_from_quaternion(x, y, z, w)
                     divergence_pentalty = 0
