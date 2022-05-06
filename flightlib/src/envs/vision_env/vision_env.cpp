@@ -414,17 +414,20 @@ q.y() = quad_state_.qx(QS::ATTY);
 q.z() = quad_state_.qx(QS::ATTZ);
 q.w() = quad_state_.qx(QS::ATTW);
 
-Eigen::Matrix3d qx_rot_matrix = q.toRotationMatrix();
+Eigen::Matrix3d qx_rot_matrix = q.normalized().toRotationMatrix();
 Eigen::Vector3d origin(1,0,0);
- Eigen::Vector3d camera_dir = qx_rot_matrix * origin;
+Eigen::Vector3d camera_dir = qx_rot_matrix * origin;
 
- // for(int i = 0; i < 3; i++)
- //  gg += " " + to_string( camera_dir[i] );
- //  logger_.info(gg);
+ /*for(int i = 0; i < 3; i++)
+   gg += " " + to_string( camera_dir[i] );
+   logger_.error(gg);*/
+
 
 
  //dot product= 1 if same dir, -1 if opposite dir, 0 if normal diction (the vectors are normal to each other)
 //Scalar attitude_reward = 0;
+//drone_dir[0] *= -1.0;
+//drone_dir[1] *= -1.0;
 Scalar attitude_reward = drone_dir.dot(camera_dir);
 //Scalar attitude_reward= - (1- drone_dir.dot(camera_dir));
 logger_.info( to_string(attitude_reward) );
