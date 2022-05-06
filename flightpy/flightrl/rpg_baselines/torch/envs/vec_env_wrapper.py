@@ -1,5 +1,8 @@
 import os
 import pickle
+import signal
+import subprocess
+import sys
 import threading
 import time
 from abc import ABC
@@ -32,10 +35,10 @@ from stable_baselines3.common.vec_env.util import (copy_obs_dict, dict_to_obs,
 ######################################
 
 FLIGHTMAER_EXE = "RPG_Flightmare.x86_64"
+DEPTH_CHANNELS = 1
 RGB_CHANNELS = 3
 HEARTBEAT_INTERVAL = 4
 FLIGHTMAER_NEXT_FOLDER = "/flightrender/"
-ALLOWED_USER_KILLER = ["giuseppe", "cam", "sara", "zaks", "students"]
 
 
 ######################################
@@ -89,7 +92,8 @@ class PingThread(Thread):
 
 
 class FlightEnvVec(VecEnv, ABC):
-    def __init__(self, env_cfg, name, mode, n_frames=3):
+    def __init__(self, env_cfg, name, mode, n_frames=3, in_port=0, out_port=0):
+        self._flightmare_process = None
         self.render_id = 0
         self.stacked_drone_state = []
         self.stacked_depth_imgs = []
@@ -99,6 +103,15 @@ class FlightEnvVec(VecEnv, ABC):
         self.env_cfg = env_cfg
         self.stopFlag = Event()
         self.thread = PingThread(self.stopFlag, self)
+        if in_port == 0 or out_port == 0:
+            self.in_port = env_cfg["unity"]["input_port"]
+            self.out_port = env_cfg["unity"]["output_port"]
+        else:
+            self.in_port = in_port
+            self.out_port = out_port
+            env_cfg["unity"]["input_port"] = in_port
+            env_cfg["unity"]["output_port"] = out_port
+
         self.wrapper = VisionEnv_v1(dump(self.env_cfg, Dumper=RoundTripDumper), False)
         self.is_unity_connected = False
         self.var = None
@@ -147,12 +160,12 @@ class FlightEnvVec(VecEnv, ABC):
         if 'depth' == self.mode or 'both' == self.mode:
             drone_spaces['depth'] = spaces.Box(
                 low=0., high=1.,
-                shape=(1, self.n_frames, self.img_height, self.img_width), dtype=np.float32
+                shape=(DEPTH_CHANNELS, self.n_frames, self.img_height, self.img_width), dtype=np.float32
             )
         if 'rgb' == self.mode or 'both' == self.mode:
             drone_spaces['rgb'] = spaces.Box(
                 low=0, high=255,
-                shape=(3, self.n_frames, self.img_height, self.img_width), dtype=np.uint8
+                shape=(RGB_CHANNELS, self.n_frames, self.img_height, self.img_width), dtype=np.uint8
             )
 
         self._observation_space = spaces.Dict(spaces=drone_spaces)
@@ -224,6 +237,7 @@ class FlightEnvVec(VecEnv, ABC):
         #  state normalization
         self.obs_rms = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
         self.obs_rms_new = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
+        self.spawn_flightmare(self.in_port, self.out_port)
 
     def seed(self, seed=0):
         if seed != 0:
@@ -231,25 +245,31 @@ class FlightEnvVec(VecEnv, ABC):
 
         self.wrapper.setSeed(self.seed_val)
 
-    def spawn_flightmare(self, input_port=0, output_port=0):
+    def spawn_flightmare(self, input_port=10277, output_port=10278):
         if input_port > 0 and output_port > 0:
             ports = " -input-port {0} -output-port {1}".format(input_port, output_port)
+            self.in_port = input_port
+            self.out_port = output_port
         else:
-            ports = ""
-        os.system(os.environ["FLIGHTMARE_PATH"] + FLIGHTMAER_NEXT_FOLDER + FLIGHTMAER_EXE + ports + "&")
+            ports = " -input-port {0} -output-port {1}".format(self.in_port, self.out_port)
+        try:
+            self._flightmare_process = subprocess.Popen(
+                [os.environ["FLIGHTMARE_PATH"] + FLIGHTMAER_NEXT_FOLDER + FLIGHTMAER_EXE + ports],
+                stdout=subprocess.PIPE,
+                shell=True, preexec_fn=os.setsid)
+        except Exception as e:
+            logging.error(e)
+            sys.exit(1)
+
+    def kill_flightmare(self):
+        os.killpg(os.getpgid(self._flightmare_process.pid), signal.SIGTERM)
+        self._flightmare_process = None
 
     def change_obstacles(self, seed=0, difficult="medium", level=0, random=False):
         # TODO Random not yet implemented
 
         self.close()
-        for proc in psutil.process_iter():
-            if proc.name() == FLIGHTMAER_EXE:
-                # if proc.username() == os.environ.get("USERNAME"):
-                if psutil.Process(proc.pid).username() in ALLOWED_USER_KILLER:
-                    print("KILLED")
-                    proc.kill()
-
-        # time.sleep(10) #is this usefull?
+        self.kill_flightmare()
         self.spawn_flightmare()
 
         self.env_cfg["environment"]["level"] = difficult
@@ -263,7 +283,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.seed(self.seed_val)
         # Require render cfg to be True
         self.connectUnity()
-        self.reset(True)
+        return self.reset(True)
 
     def update_rms(self):
         self.obs_rms = self.obs_rms_new
