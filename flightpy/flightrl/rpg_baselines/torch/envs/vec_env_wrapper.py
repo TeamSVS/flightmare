@@ -343,7 +343,7 @@ class FlightEnvVec(VecEnv, ABC):
                         divergence_pentalty = (eulerAngle[0]) / baseEulerAngle[0]
                     self.myReward[i] = step - divergence_pentalty
                 else:
-                    self.myReward = -1
+                    self.myReward[i] = -1
                 self.totalReward[i] += self.myReward[i]
         return info
 
