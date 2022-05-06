@@ -45,6 +45,31 @@ ALLOWED_USER_KILLER = ["giuseppe", "cam", "sara", "zaks", "students"]
 ############--FUNCTIONS--#############
 ######################################
 
+def isRotationMatrix(R):
+    Rt = np.transpose(R)
+    shouldBeIdentity = np.dot(Rt, R)
+    I = np.identity(3, dtype=R.dtype)
+    n = np.linalg.norm(I - shouldBeIdentity)
+    return n < 1e-6
+
+def rotationMatrixToEulerAngles(R):
+
+    assert (isRotationMatrix(R))
+
+    sy = math.sqrt(R[0, 0] * R[0, 0] + R[1, 0] * R[1, 0])
+
+    singular = sy < 1e-6
+
+    if not singular:
+        x = math.atan2(R[2, 1], R[2, 2])
+        y = math.atan2(-R[2, 0], sy)
+        z = math.atan2(R[1, 0], R[0, 0])
+    else:
+        x = math.atan2(-R[1, 2], R[1, 1])
+        y = math.atan2(-R[2, 0], sy)
+        z = 0
+
+    return np.array([x, y, z])
 
 def _unnormalize_obs(obs: np.ndarray, obs_rms: RunningMeanStd) -> np.ndarray:
     """
@@ -89,6 +114,29 @@ class PingThread(Thread):
     #######################################
     ############--MAIN-CLASS--#############
     #######################################
+
+
+def euler_from_quaternion(x, y, z, w):
+    """
+    Convert a quaternion into euler angles (roll, pitch, yaw)
+    roll is rotation around x in radians (counterclockwise)
+    pitch is rotation around y in radians (counterclockwise)
+    yaw is rotation around z in radians (counterclockwise)
+    """
+    t0 = +2.0 * (w * x + y * z)
+    t1 = +1.0 - 2.0 * (x * x + y * y)
+    roll_x = math.atan2(t0, t1)
+
+    t2 = +2.0 * (w * y - z * x)
+    t2 = +1.0 if t2 > +1.0 else t2
+    t2 = -1.0 if t2 < -1.0 else t2
+    pitch_y = math.asin(t2)
+
+    t3 = +2.0 * (w * z + x * y)
+    t4 = +1.0 - 2.0 * (y * y + z * z)
+    yaw_z = math.atan2(t3, t4)
+
+    return roll_x, pitch_y, yaw_z
 
 
 class FlightEnvVec(VecEnv, ABC):
@@ -206,6 +254,8 @@ class FlightEnvVec(VecEnv, ABC):
         self.obs_rms_new = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
 
         self.maxPos = np.zeros([self.num_envs], dtype=np.float64)
+        self.oldPos = np.zeros([self.num_envs, 3], dtype=np.float64)
+        self.direction = np.zeros([self.num_envs, 3], dtype=np.float64)
         self.myReward = np.zeros([self.num_envs], dtype=np.float64)
         self.totalReward = np.zeros([self.num_envs], dtype=np.float64)
         self.GOAL_MAX = 60
@@ -310,7 +360,7 @@ class FlightEnvVec(VecEnv, ABC):
         )
 
     def getReward(self):
-        drone_state = self.getQuadState()[:, :13].copy()
+        drone_state = self.getQuadState()[:, :].copy()
         info = [{} for i in range(self.num_envs)]
         for i in range(self.num_envs):
             if self._done[i]:
@@ -322,7 +372,7 @@ class FlightEnvVec(VecEnv, ABC):
                 info[i]["episode"] = {"r": eprew, "l": 1}
                 self.totalReward[i] = 0
             else:
-
+                self.myReward[i] = 0
                 step = drone_state[i][1] - self.maxPos[i]
                 if step > -1:
                     if step < 0:
@@ -333,41 +383,34 @@ class FlightEnvVec(VecEnv, ABC):
                     x = drone_state[i][5]
                     y = drone_state[i][6]
                     z = drone_state[i][7]
-#SONG RAGAZZO FANTASTICO SIIIIIIIIIIIIIIIIIIIIIII
-                    baseEulerAngle = self.euler_from_quaternion(1, 0, 0, 0)
-                    eulerAngle = self.euler_from_quaternion(x, y, z, w)
                     divergence_pentalty = 0
-                    if  eulerAngle[0]>(baseEulerAngle[0]/2):
-                        divergence_pentalty = (eulerAngle[0]-(baseEulerAngle[0]/2)) / baseEulerAngle[0]
-                    else:
-                        divergence_pentalty = (eulerAngle[0]) / baseEulerAngle[0]
-                    self.myReward[i] = step - divergence_pentalty
+                    module = 0
+                    for j in range(3): # calculating versors for direction
+                        k = (self.oldPos[i][j] - drone_state[i][j])
+                        self.oldPos[i][j] = drone_state[i][j]
+                        module += k*k
+                    module = math.sqrt(module)
+                    camera = euler_from_quaternion(x, y, z, w)
+                    camera[:] /= math.pi
+                    camera[0] -= 1
+                    camera[2] -= 1
+                    for j in range(3):
+                        self.direction[i][j] = (self.oldPos[i][j] - drone_state[i][j])/module
+                        self.myReward[i] -= (self.direction[i][j]- camera[j])
+
+                    self.myReward[i] += step
                 else:
                     self.myReward[i] = -1
                 self.totalReward[i] += self.myReward[i]
         return info
 
-    def euler_from_quaternion(self, x, y, z, w):
-        """
-        Convert a quaternion into euler angles (roll, pitch, yaw)
-        roll is rotation around x in radians (counterclockwise)
-        pitch is rotation around y in radians (counterclockwise)
-        yaw is rotation around z in radians (counterclockwise)
-        """
-        t0 = +2.0 * (w * x + y * z)
-        t1 = +1.0 - 2.0 * (x * x + y * y)
-        roll_x = math.atan2(t0, t1)
+    # Checks if a matrix is a valid rotation matrix.
 
-        t2 = +2.0 * (w * y - z * x)
-        t2 = +1.0 if t2 > +1.0 else t2
-        t2 = -1.0 if t2 < -1.0 else t2
-        pitch_y = math.asin(t2)
 
-        t3 = +2.0 * (w * z + x * y)
-        t4 = +1.0 - 2.0 * (y * y + z * z)
-        yaw_z = math.atan2(t3, t4)
+    # Calculates rotation matrix to euler angles
+    # The result is the same as MATLAB except the order
+    # of the euler angles ( x and z are swapped ).
 
-        return roll_x, pitch_y, yaw_z
 
     def sample_actions(self):
         actions = []
