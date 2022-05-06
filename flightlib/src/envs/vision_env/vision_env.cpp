@@ -389,29 +389,44 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
  Eigen::Vector3d pos_new(quad_state_.p(QS::POSX), quad_state_.p(QS::POSY), quad_state_.p(QS::POSZ));
  Eigen::Vector3d pos_old(quad_old_state_.p(QS::POSX), quad_old_state_.p(QS::POSY), quad_old_state_.p(QS::POSZ));
 
- Eigen::Vector3d drone_dir = (pos_new - pos_old) / getDistance(quad_old_state_.p, quad_state_.p);
+ Eigen::Vector3d drone_dir = (pos_new - pos_old) / getDistance(pos_new, pos_old);
 
- Scalar a = quad_state_.qx(QS::ATTW);
- Scalar b = quad_state_.qx(QS::ATTX);
- Scalar c = quad_state_.qx(QS::ATTY);
- Scalar d = quad_state_.qx(QS::ATTZ);
+ // Scalar a = quad_state_.qx(QS::ATTW);
+ // Scalar b = quad_state_.qx(QS::ATTX);
+ // Scalar c = quad_state_.qx(QS::ATTY);
+ // Scalar d = quad_state_.qx(QS::ATTZ);
  // Matrix<double, 3, 3> qx_rot_matrix = {a * a + b * b - c * c - d * d, 2 * b * c - 2 * a * d, 2 * b * d + 2 * a * c,
  //                   2 * b * c + 2 * a * d, a * a - b * b + c * c - d * d, 2 * c * d - 2 * a * b,
  //                   2 * b * d - 2 * a * c, 2 * c * d + 2 * a * b, a * a - b * b - c * c + d * d};
 
-Eigen::Matrix3d qx_rot_matrix;
-        qx_rot_matrix << a * a + b * b - c * c - d * d, 2 * b * c - 2 * a * d, 2 * b * d + 2 * a * c,
-                   2 * b * c + 2 * a * d, a * a - b * b + c * c - d * d, 2 * c * d - 2 * a * b,
-                  2 * b * d - 2 * a * c, 2 * c * d + 2 * a * b, a * a - b * b - c * c + d * d;
+// Eigen::Matrix3d qx_rot_matrix;
+//         qx_rot_matrix << a * a + b * b - c * c - d * d, 2 * b * c - 2 * a * d, 2 * b * d + 2 * a * c,
+//                    2 * b * c + 2 * a * d, a * a - b * b + c * c - d * d, 2 * c * d - 2 * a * b,
+//                   2 * b * d - 2 * a * c, 2 * c * d + 2 * a * b, a * a - b * b - c * c + d * d;
  // double qx_rot_matrix[3][3]=
  // {{a*a + b*b - c*c - d*d, 2 * b * c - 2 * a * d, 2 * b * d + 2 * a * c},
  //  {2 * b * c + 2 * a * d, a*a - b*b + c *c- d *d, 2 * c * d - 2 * a * b},
  //  {2 * b * d - 2 * a * c, 2 * c * d + 2 * a * b, a*a - b *b - c *c + d*d}};
+
+ Eigen::Quaterniond q;
+q.x() = quad_state_.qx(QS::ATTX);
+q.y() = quad_state_.qx(QS::ATTY);
+q.z() = quad_state_.qx(QS::ATTZ);
+q.w() = quad_state_.qx(QS::ATTW);
+
+Eigen::Matrix3d qx_rot_matrix = q.toRotationMatrix();
+
  Eigen::Vector3d camera_dir = qx_rot_matrix * drone_dir;
+
+ // for(int i = 0; i < 3; i++)
+ //  gg += " " + to_string( camera_dir[i] );
+ //  logger_.info(gg);
+
+
  //dot product= 1 if same dir, -1 if opposite dir, 0 if normal diction (the vectors are normal to each other)
 //Scalar attitude_reward = 0;
 Scalar attitude_reward = drone_dir.dot(camera_dir);
-//attitude_reward= - (1-dotProduct(drone_dir, camera_dir));
+//Scalar attitude_reward= - (1- drone_dir.dot(camera_dir));
 logger_.info( to_string(attitude_reward) );
 
 
@@ -436,8 +451,8 @@ logger_.info( to_string(attitude_reward) );
    //string str = to_string(   quad_state_.v.norm()   );
   string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty)
                   +  "  " +
-    to_string(attitude_reward) + "  " + to_string(time_percentage) + "  " + to_string(total_reward);
-//  logger_.info(str);
+    to_string(attitude_reward) +  "  " + to_string(total_reward);
+  //logger_.info(str);
   //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
 
 
