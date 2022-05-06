@@ -3,6 +3,7 @@ import os
 import pickle
 import threading
 import time
+import math
 from abc import ABC
 from copy import deepcopy
 from typing import Any, Callable, List, Optional, Sequence, Type, Union
@@ -296,8 +297,6 @@ class FlightEnvVec(VecEnv, ABC):
             self.render_id = self.render(
                 self.render_id)  # TODO INCREASE RENDER ID IT IS REALLY NECESSARY TO DO RENDER ID +1
 
-
-
         logging.info(self.getImage(True))
 
         new_obs = self.getObs()
@@ -311,23 +310,58 @@ class FlightEnvVec(VecEnv, ABC):
         )
 
     def getReward(self):
+        drone_state = self.getQuadState()[:, :13].copy()
         info = [{} for i in range(self.num_envs)]
         for i in range(self.num_envs):
             if self._done[i]:
                 if self.maxPos[i] > self.GOAL_MAX:
                     self.myReward[i] = 5
                 else:
-                    self.myReward[i] = -10.0
-                eprew = self.totalReward[i]+self.myReward[i]
-                info[i]["episode"] = {"r": eprew, "l":1}
-                self.totalReward[i]=0
+                    self.myReward[i] = -2.0
+                eprew = self.totalReward[i] + self.myReward[i]
+                info[i]["episode"] = {"r": eprew, "l": 1}
+                self.totalReward[i] = 0
             else:
-                step = self._quadstate[i][1] - self.maxPos[i]
-                self.myReward[i] = step if step > 0 else 0
-                if self._quadstate[i][0] > self.maxPos[i]:
-                    self.maxPos[i] = self._quadstate[i][1]
+
+                step = drone_state[i][1] - self.maxPos[i]
+                if step < 0:
+                    step = 0
+                    self.maxPos[i] = drone_state[i][1]
+                w = drone_state[i][4]
+                y = drone_state[i][5]
+                z = drone_state[i][6]
+                x = drone_state[i][7]
+                baseEulerAngle = self.euler_from_quaternion(1, 0, 0, 0)
+                eulerAngle = self.euler_from_quaternion(x, y, z, w)
+                divergence_pentalty = 0
+                if baseEulerAngle[0] != eulerAngle[0]:
+                    divergence_pentalty = eulerAngle[0] / baseEulerAngle[0]
+                self.myReward[i] = step - divergence_pentalty
+
                 self.totalReward[i] += self.myReward[i]
         return info
+
+    def euler_from_quaternion(self, x, y, z, w):
+        """
+        Convert a quaternion into euler angles (roll, pitch, yaw)
+        roll is rotation around x in radians (counterclockwise)
+        pitch is rotation around y in radians (counterclockwise)
+        yaw is rotation around z in radians (counterclockwise)
+        """
+        t0 = +2.0 * (w * x + y * z)
+        t1 = +1.0 - 2.0 * (x * x + y * y)
+        roll_x = math.atan2(t0, t1)
+
+        t2 = +2.0 * (w * y - z * x)
+        t2 = +1.0 if t2 > +1.0 else t2
+        t2 = -1.0 if t2 < -1.0 else t2
+        pitch_y = math.asin(t2)
+
+        t3 = +2.0 * (w * z + x * y)
+        t4 = +1.0 - 2.0 * (y * y + z * z)
+        yaw_z = math.atan2(t3, t4)
+
+        return roll_x, pitch_y, yaw_z
 
     def sample_actions(self):
         actions = []
