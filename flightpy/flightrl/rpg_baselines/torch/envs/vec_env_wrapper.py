@@ -233,7 +233,7 @@ class FlightEnvVec(VecEnv, ABC):
                 "rgb": rgb_space
             }
         )
-        #self.observation_space = gym.spaces.Dict(combined_space)
+        # self.observation_space = gym.spaces.Dict(combined_space)
         #  state normalization
         self.obs_rms = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
         self.obs_rms_new = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
@@ -270,7 +270,7 @@ class FlightEnvVec(VecEnv, ABC):
 
         self.close()
         self.kill_flightmare()
-        self.spawn_flightmare()
+        self.spawn_flightmare(self.in_port, self.out_port)
 
         self.env_cfg["environment"]["level"] = difficult
         self.env_cfg["environment"]["env_folder"] = "environment_" + str(level)
@@ -323,7 +323,6 @@ class FlightEnvVec(VecEnv, ABC):
             self._extraInfo,
         )
 
-
         # update the mean and variance of the Running Mean STD
         self.obs_rms_new.update(self._observation)
         obs = self.normalize_obs(self._observation)
@@ -357,7 +356,6 @@ class FlightEnvVec(VecEnv, ABC):
 
         logging.info("." + self.name)
         if self.is_unity_connected:
-
             self.render_id = self.render(
                 self.render_id)  # TODO INCREASE RENDER ID IT IS REALLY NECESSARY TO DO RENDER ID +1
             logging.info(self.getImage(True))
