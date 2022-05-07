@@ -653,7 +653,7 @@ bool VisionEnv::loadParam(const YAML::Node &cfg) {
     survive_rew_ = cfg["rewards"]["survive_rew"].as<Scalar>();
     goal_dist_rew_ = cfg["rewards"]["goal_dist_rew"].as<Scalar>();
     attitude_ori_coeff_ = cfg["rewards"]["attitude_ori_coeff"].as<Scalar>();
-    drone_orientation_ = cfg["environment"]["orientation"].as<std::string>();
+    drone_orientation_ = cfg["rewards"]["orientation"].as<std::string>();
 
     // load reward settings
     reward_names_ = cfg["rewards"]["names"].as<std::vector<std::string>>();
