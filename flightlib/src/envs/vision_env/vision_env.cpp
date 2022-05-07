@@ -389,7 +389,14 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
  Eigen::Vector3d pos_new(quad_state_.p(QS::POSX), quad_state_.p(QS::POSY), quad_state_.p(QS::POSZ));
  Eigen::Vector3d pos_old(quad_old_state_.p(QS::POSX), quad_old_state_.p(QS::POSY), quad_old_state_.p(QS::POSZ));
 
- Eigen::Vector3d drone_dir = (pos_new - pos_old) / getDistance(pos_new, pos_old);
+ Eigen::Vector3d drone_dir;
+ Eigen::Vector3d WorldX(1,0,0);
+ if(drone_orientation_ == "local"){
+      drone_dir = WorldX;
+ }else {
+      drone_dir = (pos_new - pos_old) / getDistance(pos_new, pos_old);
+ }
+
 
  // Scalar a = quad_state_.qx(QS::ATTW);
  // Scalar b = quad_state_.qx(QS::ATTX);
@@ -418,9 +425,9 @@ Eigen::Matrix3d qx_rot_matrix = q.normalized().toRotationMatrix();
 Eigen::Vector3d origin(1,0,0);
 Eigen::Vector3d camera_dir = qx_rot_matrix * origin;
 
- /*for(int i = 0; i < 3; i++)
+ for(int i = 0; i < 3; i++)
    gg += " " + to_string( camera_dir[i] );
-   logger_.error(gg);*/
+   logger_.error(gg);
 
 
 
@@ -428,7 +435,8 @@ Eigen::Vector3d camera_dir = qx_rot_matrix * origin;
 //Scalar attitude_reward = 0;
 //drone_dir[0] *= -1.0;
 //drone_dir[1] *= -1.0;
-Scalar attitude_reward = (drone_dir.dot(camera_dir) + 1) / 2 -1;
+Scalar attitude_reward = drone_dir.dot(camera_dir);
+//Scalar attitude_reward = (drone_dir.dot(camera_dir) + 1) / 2 -1;
 //Scalar attitude_reward= - (1- drone_dir.dot(camera_dir));
 logger_.info( to_string(attitude_reward) );
 
@@ -645,6 +653,7 @@ bool VisionEnv::loadParam(const YAML::Node &cfg) {
     survive_rew_ = cfg["rewards"]["survive_rew"].as<Scalar>();
     goal_dist_rew_ = cfg["rewards"]["goal_dist_rew"].as<Scalar>();
     attitude_ori_coeff_ = cfg["rewards"]["attitude_ori_coeff"].as<Scalar>();
+    drone_orientation_ = cfg["environment"]["orientation"].as<std::string>();
 
     // load reward settings
     reward_names_ = cfg["rewards"]["names"].as<std::vector<std::string>>();

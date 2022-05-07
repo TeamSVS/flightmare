@@ -130,6 +130,7 @@ class VisionEnv final : public EnvBase {
 
   // Define reward for training
   Scalar vel_coeff_, collision_coeff_, angular_vel_coeff_, survive_rew_, goal_dist_rew_, attitude_ori_coeff_;
+  std::string drone_orientation_;
   Vector<3> goal_linear_vel_;
   Vector<3> goal_pos_;
   Vector<3> max_dist_;
