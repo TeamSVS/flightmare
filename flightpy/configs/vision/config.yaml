@@ -14,7 +14,7 @@ rewards:
   survive_rew: 0.03  #0.03
   goal_dist_rew: 1 #0.09
   attitude_ori_coeff: -0.1
-  orientation: "local" #local or global
+  orientation: "global" #local or global
 
   names:
     [
@@ -28,7 +28,7 @@ rewards:
 rgb_camera:
   on: yes
   t_BC: [ 0.0, 0.0, 0.3 ] # translational vector of the camera with repect to the body frame
-  r_BC: [ 0.0, 0.0, -90 ] # rotational angle (roll, pitch, yaw) of the camera in degree.
+  r_BC: [ 0.0, 0.0, -90] # - rotational angle (roll, pitch, yaw) of the camera in degree.
   channels: 3
   width: 150
   height: 150
@@ -47,7 +47,7 @@ simulation:
   seed: 1
   sim_dt: 0.02
   max_t: 20.0
-  num_envs: 3
+  num_envs: 1
   num_threads: 32
   heartbeat: yes
   fakeQuadrotorScaleSize: 1
