@@ -391,7 +391,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
 
  Eigen::Vector3d drone_dir;
  Eigen::Vector3d WorldX(1,0,0);
- if(drone_orientation_ == "local"){
+ if(drone_orientation_ == "global"){
       drone_dir = WorldX;
  }else {
       drone_dir = (pos_new - pos_old) / getDistance(pos_new, pos_old);
