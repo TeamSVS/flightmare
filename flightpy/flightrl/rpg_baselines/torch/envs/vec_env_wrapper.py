@@ -76,6 +76,16 @@ def _normalize_img(obs: np.ndarray) -> np.ndarray:
     ############################################
 
 
+def get_open_port():
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("", 0))
+    s.listen(1)
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
 class PingThread(Thread):
     def __init__(self, event, vecEnv):
         Thread.__init__(self)
@@ -96,8 +106,8 @@ class PingThread(Thread):
 class FlightEnvVec(VecEnv, ABC):
     def __init__(self, env_cfg, name, mode, n_frames=3):
 
-        self.port1 = random.randint(1025, 65534)
-        self.port2 = random.randint(1025, 65534)
+        self.port1 = get_open_port()  # random.randint(1025, 65534)
+        self.port2 = get_open_port()  # random.randint(1025, 65534)
         self._flightmare_process = None
         self.render_id = 0
         self.stacked_drone_state = []
@@ -110,15 +120,16 @@ class FlightEnvVec(VecEnv, ABC):
         self.thread = PingThread(self.stopFlag, self)
         self.env_cfg["unity"]["input_port"] = self.port1
         self.env_cfg["unity"]["output_port"] = self.port2
+        self.seed_val = 0
         self.wrapper = VisionEnv_v1(dump(self.env_cfg, Dumper=RoundTripDumper), False)
+        self.seed(42)
         self.is_unity_connected = False
         self.var = None
         self.mean = None
         self.envs = None
         self._reward = None
         self.mode = mode  # rgb, depth, both
-        self.seed_val = 42
-        self.wrapper.setSeed(42)
+
         self._heartbeat = True if env_cfg["simulation"]["heartbeat"] == "yes" else False
         self.obs_ranges_dic = {0: [0, 10],
                                1: [-20, 80],
@@ -221,7 +232,7 @@ class FlightEnvVec(VecEnv, ABC):
         if seed != 0:
             self.seed_val = seed
 
-        self.wrapper.setSeed(42)
+        self.wrapper.setSeed(self.seed_val)
 
     def spawn_flightmare(self, input_port=10253, output_port=10254):
         if input_port > 0 and output_port > 0:
@@ -238,14 +249,12 @@ class FlightEnvVec(VecEnv, ABC):
             sys.exit(1)
 
     def kill_flightmare(self):
-        print("sdaffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+        print(
+            "sdaffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
         if self._flightmare_process is not None and self._flightmare_process.pid is not None:
-
-                os.killpg(self._flightmare_process.pid, signal.SIGTERM)
-                self._flightmare_process.terminate()
-                self._flightmare_process = None
-
-
+            os.killpg(self._flightmare_process.pid, signal.SIGTERM)
+            self._flightmare_process.terminate()
+            self._flightmare_process = None
 
     def change_obstacles(self, seed=0, difficult="medium", level=0, random=False):
         # TODO Random not yet implemented
