@@ -258,7 +258,7 @@ class FlightEnvVec(VecEnv, ABC):
         if seed != 0:
             self.seed_val = seed
 
-        self.wrapper.setSeed(self.seed_val)
+        self.wrapper.setSeed(42)
 
     def spawn_flightmare(self, input_port=10277, output_port=10278):
         if input_port > 0 and output_port > 0:
