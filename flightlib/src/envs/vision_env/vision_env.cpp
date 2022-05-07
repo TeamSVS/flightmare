@@ -428,7 +428,7 @@ Eigen::Vector3d camera_dir = qx_rot_matrix * origin;
 //Scalar attitude_reward = 0;
 //drone_dir[0] *= -1.0;
 //drone_dir[1] *= -1.0;
-Scalar attitude_reward = drone_dir.dot(camera_dir);
+Scalar attitude_reward = (drone_dir.dot(camera_dir) + 1) / 2 -1;
 //Scalar attitude_reward= - (1- drone_dir.dot(camera_dir));
 logger_.info( to_string(attitude_reward) );
 
