@@ -391,10 +391,13 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
 
  Eigen::Vector3d drone_dir;
  Eigen::Vector3d WorldX(1,0,0);
- if(drone_orientation_ == "global"){
+ if(drone_orientation_.compare("global") == 0){
       drone_dir = WorldX;
+      gg = "global";
  }else {
+
       drone_dir = (pos_new - pos_old) / getDistance(pos_new, pos_old);
+      gg = "local";
  }
 
 
@@ -420,14 +423,24 @@ q.x() = quad_state_.qx(QS::ATTX);
 q.y() = quad_state_.qx(QS::ATTY);
 q.z() = quad_state_.qx(QS::ATTZ);
 q.w() = quad_state_.qx(QS::ATTW);
-
+gg = to_string(quad_state_.v(QS::VELX)) + " " + to_string(quad_state_.v(QS::VELY))
+ + " " + to_string(quad_state_.qx(QS::VELZ)) + " ";
+//logger_.error(gg);
 Eigen::Matrix3d qx_rot_matrix = q.normalized().toRotationMatrix();
+Eigen::Matrix3d rot_mat = quad_state_.R();
 Eigen::Vector3d origin(1,0,0);
-Eigen::Vector3d camera_dir = qx_rot_matrix * origin;
+Eigen::Vector3d camera_dir =  qx_rot_matrix * origin;
+Eigen::Vector3d camera_dir2 =  rot_mat * origin;
 
+gg = " ";
  for(int i = 0; i < 3; i++)
    gg += " " + to_string( camera_dir[i] );
-   logger_.error(gg);
+logger_.error(gg);
+
+  gg = " ";
+   for(int i = 0; i < 3; i++)
+     gg += " " + to_string( camera_dir2[i] );
+     logger_.warn(gg);
 
 
 
@@ -435,7 +448,7 @@ Eigen::Vector3d camera_dir = qx_rot_matrix * origin;
 //Scalar attitude_reward = 0;
 //drone_dir[0] *= -1.0;
 //drone_dir[1] *= -1.0;
-Scalar attitude_reward = drone_dir.dot(camera_dir);
+Scalar attitude_reward = drone_dir.dot(camera_dir2);
 //Scalar attitude_reward = (drone_dir.dot(camera_dir) + 1) / 2 -1;
 //Scalar attitude_reward= - (1- drone_dir.dot(camera_dir));
 logger_.info( to_string(attitude_reward) );
