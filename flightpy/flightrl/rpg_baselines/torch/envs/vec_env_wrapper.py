@@ -23,6 +23,7 @@ from flightgym import VisionEnv_v1
 from gym import spaces
 from ruamel.yaml import RoundTripDumper, YAML, dump
 from numpy.core.fromnumeric import shape
+from ruamel.yaml import YAML
 from stable_baselines3.common.running_mean_std import RunningMeanStd
 from stable_baselines3.common.vec_env.base_vec_env import (VecEnv,
                                                            VecEnvIndices,
@@ -104,7 +105,7 @@ class PingThread(Thread):
 
 
 class FlightEnvVec(VecEnv, ABC):
-    def __init__(self, env_cfg, name, mode, n_frames=3):
+    def __init__(self, env_cfg, name, mode, n_frames=3, in_port=0, out_port=0):
 
         self.port1 = get_open_port()  # random.randint(1025, 65534)
         self.port2 = get_open_port()  # random.randint(1025, 65534)
@@ -222,11 +223,36 @@ class FlightEnvVec(VecEnv, ABC):
         self._quadact = np.zeros([self.num_envs, 4], dtype=np.float64)
         self._flightmodes = np.zeros([self.num_envs, 1], dtype=np.float64)
 
+        ######################################################
+        # Gym spaces of the environment (the actual dimensions for this environment's obs and action)
+        ######################################################
+        depth_space = spaces.Box(
+            low=0, high=1,
+            shape=(1, self.img_height, self.img_width), dtype=np.float64
+        )
+
+        rgb_space = spaces.Box(
+            low=0, high=1,
+            shape=(3, self.img_height, self.img_width), dtype=np.float64
+        )
+        drone_state_space = spaces.Box(
+            low=-np.Inf, high=np.Inf,
+            shape=(13,), dtype=np.float64
+        )
+        combined_space = spaces.Dict(
+            spaces={
+                "drone_state": drone_state_space,
+                "depth": depth_space,
+                "rgb": rgb_space
+            }
+        )
+        # self.observation_space = gym.spaces.Dict(combined_space)
         #  state normalization
         self.obs_rms = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
         self.obs_rms_new = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
         self.spawn_flightmare(self.port1, self.port2)
         self.connectUnity()
+
 
     def seed(self, seed=0):
         if seed != 0:
@@ -234,11 +260,13 @@ class FlightEnvVec(VecEnv, ABC):
 
         self.wrapper.setSeed(self.seed_val)
 
-    def spawn_flightmare(self, input_port=10253, output_port=10254):
+    def spawn_flightmare(self, input_port=10277, output_port=10278):
         if input_port > 0 and output_port > 0:
             ports = " -input-port {0} -output-port {1}".format(input_port, output_port)
+            self.in_port = input_port
+            self.out_port = output_port
         else:
-            ports = ""
+            ports = " -input-port {0} -output-port {1}".format(self.in_port, self.out_port)
         try:
             self._flightmare_process = subprocess.Popen(
                 [os.environ["FLIGHTMARE_PATH"] + FLIGHTMAER_NEXT_FOLDER + FLIGHTMAER_EXE + ports],
@@ -261,7 +289,7 @@ class FlightEnvVec(VecEnv, ABC):
 
         self.close()
         self.kill_flightmare()
-        self.spawn_flightmare()
+        self.spawn_flightmare(self.in_port, self.out_port)
 
         self.env_cfg["environment"]["level"] = difficult
         self.env_cfg["environment"]["env_folder"] = "environment_" + str(level)
