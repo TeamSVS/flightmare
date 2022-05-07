@@ -45,10 +45,6 @@ bool UnityBridge::initializeConnections() {
   // pub_.set(zmqpp::socket_option::heartbeat_interval, 1000);
 
 
-  int tcp_keepalive, tcp_keepalive_idle, tcp_keepalive_count,
-    tcp_keepalive_interval;
-  int ipv4_only, file_descriptor;
-
   // pub_.set(zmqpp::socket_option::tcp_keepalive, -1);
   // pub_.set(zmqpp::socket_option::tcp_keepalive_idle, 1);
   // pub_.set(zmqpp::socket_option::tcp_keepalive_count, 150);
