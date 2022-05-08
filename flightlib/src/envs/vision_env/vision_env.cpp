@@ -474,7 +474,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   string str = "  " + to_string(dist_reward) + "  " +
                to_string(collision_penalty) + "  " +
                to_string(attitude_reward) + "  " + to_string(total_reward);
-  std::cout << "\t\t\t\t" + total_reward << endl;
+  std::cout << "\t\t\t\t" + to_string(total_reward) << endl;
   // return all reward components for debug purposes
   reward << dist_reward, collision_penalty, ang_vel_penalty, survive_rew_,
     total_reward;
