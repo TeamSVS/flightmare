@@ -386,7 +386,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
  // Vector<3> pos_new, pos_old;
  // pos_new =  quad_state_.p;
  // pos_old = quad_old_state_
- Eigen::Vector3d pos_new(quad_state_.p(QS::POSX), quad_state_.p(QS::POSY), quad_state_.p(QS::POSZ));
+ Eigen::Vector3d pos_new(quad_state_.p(QS::POSX), quad_state_.p(QS::POSY), quad_state_.p(QS::POSZ));git status+
  Eigen::Vector3d pos_old(quad_old_state_.p(QS::POSX), quad_old_state_.p(QS::POSY), quad_old_state_.p(QS::POSZ));
 
  Eigen::Vector3d drone_dir;
