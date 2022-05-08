@@ -158,7 +158,7 @@ bool VisionEnv::getObstacleState(Ref<Vector<>> obs_state) {
   relative_pos_norm_.clear();
   obstacle_radius_.clear();
 
-  //
+  //ort_i
   quad_ptr_->getState(&quad_state_);
 
   // compute relative distance to dynamic obstacles
@@ -191,7 +191,6 @@ bool VisionEnv::getObstacleState(Ref<Vector<>> obs_state) {
     // compute relative position vector
     Vector<3> delta_pos = static_objects_[i]->getPos() - quad_state_.p;
     relative_pos.push_back(delta_pos);
-
 
     // compute relative distance
     Scalar obstacle_dist = delta_pos.norm();
@@ -323,36 +322,34 @@ static Scalar dotProduct(Vector<3> vect_A, Vector<3> vect_B)
 
 bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   // ---------------------- reward function design
-  // - compute collision penalty
-  Scalar collision_penalty = 0.0;
-  Scalar total_detectable_obstacles = 0;
-  size_t idx = 0;
-  for (size_t sort_idx : sort_indexes(relative_pos_norm_)) {
-    if (idx >= visionenv::kNObstacles) break;
 
 
-    Scalar relative_dist =
-         (relative_pos_norm_[sort_idx] > 0) &&
-            (relative_pos_norm_[sort_idx] < max_detection_range_)
-              ?  relative_pos_norm_[sort_idx] : max_detection_range_;
+  // for (size_t sort_idx : sort_indexes(relative_pos_norm_)) {
+  //   if (idx >= visionenv::kNObstacles) break;
+  //
+  //
+  //   Scalar relative_dist =
+  //        (relative_pos_norm_[sort_idx] > 0) &&
+  //           (relative_pos_norm_[sort_idx] < max_detection_range_)
+  //             ?  relative_pos_norm_[sort_idx] : max_detection_range_;
+  //
+  //   const Scalar dist_margin = 3;   //0.5
+  //   if (relative_pos_norm_[sort_idx] <=
+  //       obstacle_radius_[sort_idx] + dist_margin) {
+  //     // compute distance penalty
+  //     collision_penalty += std::exp(-0.99 * relative_dist);
+  //     total_detectable_obstacles += 1;
+  //
+  //
+  //   }
+  //
+  //   idx += 1;
+  // }
 
-    const Scalar dist_margin = 3;   //0.5
-    if (relative_pos_norm_[sort_idx] <=
-        obstacle_radius_[sort_idx] + dist_margin) {
-      // compute distance penalty
-      collision_penalty += std::exp(-0.99 * relative_dist);
-      total_detectable_obstacles += 1;
-
-
-    }
-
-    idx += 1;
-  }
-
-  if(quad_state_.v.norm() > 10)
-    collision_penalty *= log(1 + quad_state_.v.norm()) * collision_coeff_ / (total_detectable_obstacles + 1);
-  else
-    collision_penalty = 0;
+  // if(quad_state_.v.norm() > 10)
+  //   collision_penalty *= log(1 + quad_state_.v.norm()) * collision_coeff_ / (total_detectable_obstacles + 1);
+  // else
+  //   collision_penalty = 0;
    //logger_.info( to_string(  collision_penalty  ));
 
   // - tracking the difference between max and actua distances
@@ -401,6 +398,38 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
  }
 
 
+ // get N most closest obstacles as the observation
+ Vector<visionenv::kNObstacles * visionenv::kNObstaclesState> obstacles;
+ getObstacleState(obstacles);
+
+ // - compute collision penalty idea di giuseppe 2
+  Scalar collision_penalty = 0.0;
+  Scalar total_detectable_obstacles = 0;
+  size_t idx = 0;
+ //logger_.warn(  to_string(obstacles.size()) );
+  for (int i = 0; i < obstacles.size() / 4; i++){
+      //per single obstacle
+      Eigen::Vector3d ob_relative_pos(obstacles[i*4+0], obstacles[i*4+1], obstacles[i*4+2]);
+      Eigen::Vector3d ori(0,0,0);
+      Scalar radius = obstacles[i*4+3];
+      Scalar obstacle_dis = getDistance(ori, ob_relative_pos);
+      Eigen::Vector3d obs_dir = ob_relative_pos / obstacle_dis;
+      Scalar theta = abs(obs_dir.dot(drone_dir));
+
+      Scalar alpha = radius * 180.0 / (obstacle_dis * 3.141592653589793);
+
+      if(theta < alpha){
+          collision_penalty = (1 / 10 - 1 / obstacle_dis);
+          if(collision_penalty < -1 ){
+            collision_penalty = -1;
+          }
+      }
+
+
+      logger_.warn(  to_string(i) + " " +  to_string(collision_penalty) );
+  }
+
+
  // Scalar a = quad_state_.qx(QS::ATTW);
  // Scalar b = quad_state_.qx(QS::ATTX);
  // Scalar c = quad_state_.qx(QS::ATTY);
@@ -432,15 +461,15 @@ Eigen::Vector3d origin(1,0,0);
 Eigen::Vector3d camera_dir =  qx_rot_matrix * origin;
 Eigen::Vector3d camera_dir2 =  rot_mat * origin;
 
-gg = " ";
- for(int i = 0; i < 3; i++)
-   gg += " " + to_string( camera_dir[i] );
-logger_.error(gg);
-
-  gg = " ";
-   for(int i = 0; i < 3; i++)
-     gg += " " + to_string( camera_dir2[i] );
-     logger_.warn(gg);
+// gg = " ";
+//  for(int i = 0; i < 3; i++)
+//    gg += " " + to_string( camera_dir[i] );
+// logger_.error(gg);
+//
+//   gg = " ";
+//    for(int i = 0; i < 3; i++)
+//      gg += " " + to_string( camera_dir2[i] );
+//      logger_.warn(gg);
 
 
 
@@ -451,7 +480,7 @@ logger_.error(gg);
 Scalar attitude_reward = drone_dir.dot(camera_dir2) * 0.5;
 //Scalar attitude_reward = (drone_dir.dot(camera_dir) + 1) / 2 -1;
 //Scalar attitude_reward= - (1- drone_dir.dot(camera_dir));
-logger_.info( to_string(attitude_reward) );
+//logger_.info( to_string(attitude_reward) );
 
 
  // attitude_penalty = attitude_ori_coeff_ * sqrt(attitude_penalty);
@@ -470,7 +499,7 @@ logger_.info( to_string(attitude_reward) );
  // logger_.info( "attitude : " + gg);
   //  change progress reward as survive reward
    Scalar total_reward =
-        dist_reward + survive_rew_ + attitude_reward;
+        dist_reward *(1 + collision_penalty) + survive_rew_ + attitude_reward;
     //lin_vel_reward + collision_penalty + ang_vel_penalty + survive_rew_;
    //string str = to_string(   quad_state_.v.norm()   );
   string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty)
