@@ -253,7 +253,6 @@ class FlightEnvVec(VecEnv, ABC):
         self.spawn_flightmare(self.port1, self.port2)
         self.connectUnity()
 
-
     def seed(self, seed=0):
         if seed != 0:
             self.seed_val = seed
