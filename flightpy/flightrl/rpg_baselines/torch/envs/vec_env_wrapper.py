@@ -253,6 +253,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.obs_rms_new = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
         self.spawn_flightmare(self.port1, self.port2)
         self.connectUnity()
+        time.sleep(2)
 
     def seed(self, seed=0):
         if seed != 0:
@@ -278,7 +279,7 @@ class FlightEnvVec(VecEnv, ABC):
 
     def kill_flightmare(self):
         print(
-            "sdaffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+            "Killed")
         if self._flightmare_process is not None and self._flightmare_process.pid is not None:
             os.killpg(self._flightmare_process.pid, signal.SIGTERM)
             self._flightmare_process.terminate()
@@ -374,9 +375,11 @@ class FlightEnvVec(VecEnv, ABC):
                 self.rewards[i].clear()
 
         logging.info("." + self.name)
+        
         if self.is_unity_connected:
             self.render_id = self.render(
                 self.render_id)  # TODO INCREASE RENDER ID IT IS REALLY NECESSARY TO DO RENDER ID +1
+            self.render_id = self.render_id + 1
             logging.info(self.getImage(True))
         new_obs = self.getObs()
         return (
@@ -552,7 +555,8 @@ class FlightEnvVec(VecEnv, ABC):
         self.wrapper.connectUnity()
 
     def sendUnityPing(self):
-        self.wrapper.sendUnityPing()
+        if self.is_unity_connected:
+            self.wrapper.sendUnityPing()
 
     def setFakeQuadrotorScale(self, scale=1.0):
         self.wrapper.setFakeQuadrotorScale(1.0)

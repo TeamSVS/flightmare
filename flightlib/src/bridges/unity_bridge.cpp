@@ -116,7 +116,7 @@ bool UnityBridge::initializeConnections() {
 
 bool UnityBridge::connectUnity(const SceneID scene_id) {
   Scalar time_out_count = 0;
-  Scalar sleep_useconds = 0.5 * 1e5;
+  Scalar sleep_useconds = 0.2 * 1e5;
   setScene(scene_id);
   // try to connect unity
   logger_.info("Trying to Connect Unity.");
