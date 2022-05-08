@@ -426,7 +426,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
       }
 
 
-      logger_.warn(  to_string(i) + " " +  to_string(collision_penalty) );
+    //  logger_.warn(  to_string(i) + " " +  to_string(collision_penalty) );
   }
 
 
@@ -493,27 +493,31 @@ Scalar attitude_reward = drone_dir.dot(camera_dir2) * 0.5;
    //gg += to_string(qx) + " " + to_string(qz) + " " ;
 
   //str[i] = to_string(   quad_state_.qx[i]     );
-
+  //idea giuseppe
+  if(quad_state_.p(QS::POSX) > xMax){
+    dist_reward = dist_reward *(1 + collision_penalty);
+    xMax =  quad_state_.p(QS::POSX);
+  }else{
+    dist_reward = 0;
+  }
 
   //logger_.info( "angular velocit: " + str1 + " " + str2 + " " + str3);
  // logger_.info( "attitude : " + gg);
+
   //  change progress reward as survive reward
    Scalar total_reward =
-        dist_reward *(1 + collision_penalty) + survive_rew_ + attitude_reward;
+        dist_reward + survive_rew_ + attitude_reward;
     //lin_vel_reward + collision_penalty + ang_vel_penalty + survive_rew_;
    //string str = to_string(   quad_state_.v.norm()   );
   string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty)
                   +  "  " +
     to_string(attitude_reward) +  "  " + to_string(total_reward);
-  //logger_.info(str);
+  logger_.warn(str);
   //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
 
 
 
-      //idea giuseppe
-  if(quad_state_.p(QS::POSX) > xMax){
-     xMax =  quad_state_.p(QS::POSX);
-  }
+
   if (xMax - 0.5 > quad_state_.p(QS::POSX)){
     total_reward = -1;
   }
