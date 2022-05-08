@@ -40,7 +40,7 @@ FLIGHTMAER_EXE = "RPG_Flightmare.x86_64"
 DEPTH_CHANNELS = 1
 RGB_CHANNELS = 3
 DEPTH_CHANNELS = 1
-HEARTBEAT_INTERVAL = 4
+HEARTBEAT_INTERVAL = 1
 FLIGHTMAER_NEXT_FOLDER = "/flightrender/"
 
 
@@ -97,6 +97,7 @@ class PingThread(Thread):
         while True:
             time.sleep(2)
             while not self.stopped.wait(HEARTBEAT_INTERVAL):
+                print("\t\t HB")
                 self.env.wrapper.sendUnityPing()
 
     #######################################
@@ -378,7 +379,7 @@ class FlightEnvVec(VecEnv, ABC):
                 self.render_id)  # TODO INCREASE RENDER ID IT IS REALLY NECESSARY TO DO RENDER ID +1
             logging.info(self.getImage(True))
         new_obs = self.getObs()
-
+        time.sleep(100)
         return (
             new_obs,
             self._reward_components[:, -1].copy()[0],
