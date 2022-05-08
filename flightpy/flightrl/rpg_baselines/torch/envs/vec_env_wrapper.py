@@ -379,7 +379,6 @@ class FlightEnvVec(VecEnv, ABC):
                 self.render_id)  # TODO INCREASE RENDER ID IT IS REALLY NECESSARY TO DO RENDER ID +1
             logging.info(self.getImage(True))
         new_obs = self.getObs()
-        time.sleep(100)
         return (
             new_obs,
             self._reward_components[:, -1].copy()[0],
