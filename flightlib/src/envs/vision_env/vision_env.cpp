@@ -109,10 +109,10 @@ bool VisionEnv::reset(Ref<Vector<>> obs) {
   num_collision = 0;
   xMax = 0;
 
-//  std::cout << "Reset!\n";
-//  std::cout << "Starting Drone X:" << quad_state_.p(QS::POSX) << "\n";
-//  std::cout << "Starting Drone Y:" << quad_state_.p(QS::POSY) << "\n";
-//  std::cout << "Starting Drone Z:" << quad_state_.p(QS::POSZ) << "\n";
+  //  std::cout << "Reset!\n";
+  //  std::cout << "Starting Drone X:" << quad_state_.p(QS::POSX) << "\n";
+  //  std::cout << "Starting Drone Y:" << quad_state_.p(QS::POSY) << "\n";
+  //  std::cout << "Starting Drone Z:" << quad_state_.p(QS::POSZ) << "\n";
 
   // reset quadrotor with random states
   quad_ptr_->reset(quad_state_);
@@ -303,39 +303,37 @@ bool VisionEnv::simDynamicObstacles(const Scalar dt) {
 //     return v;
 // }
 
-static double getDistance(Vector<3> v1, Vector<3> v2){
+static double getDistance(Vector<3> v1, Vector<3> v2) {
   double len = 0;
-  for(int i = 0; i < 3; i++){
-      len += (v2[i] - v1[i]) * (v2[i] - v1[i]);
+  for (int i = 0; i < 3; i++) {
+    len += (v2[i] - v1[i]) * (v2[i] - v1[i]);
   }
   return sqrt(len);
 }
 
-static Scalar dotProduct(Vector<3> vect_A, Vector<3> vect_B)
-{
-
-    Scalar product = 0;
-    // Loop for calculate dot product
-    for (int i = 0; i < 3; i++)
-        product = product + vect_A[i] * vect_B[i];
-    return product;
+static Scalar dotProduct(Vector<3> vect_A, Vector<3> vect_B) {
+  Scalar product = 0;
+  // Loop for calculate dot product
+  for (int i = 0; i < 3; i++) product = product + vect_A[i] * vect_B[i];
+  return product;
 }
 
 bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   // ---------------------- reward function design
   // - compute approach penalty
- {
+
   Scalar collision_penalty = 0.0;
   Scalar total_detectable_obstacles = 0;
   size_t idx = 0;
   for (size_t sort_idx : sort_indexes(relative_pos_norm_)) {
     if (idx >= visionenv::kNObstacles) break;
     Scalar relative_dist =
-         (relative_pos_norm_[sort_idx] > 0) &&
-            (relative_pos_norm_[sort_idx] < max_detection_range_)
-              ?  relative_pos_norm_[sort_idx] : max_detection_range_;
+      (relative_pos_norm_[sort_idx] > 0) &&
+          (relative_pos_norm_[sort_idx] < max_detection_range_)
+        ? relative_pos_norm_[sort_idx]
+        : max_detection_range_;
 
-    const Scalar dist_margin = 0.5;   //0.5
+    const Scalar dist_margin = 0.5;  // 0.5
     if (relative_pos_norm_[sort_idx] <=
         obstacle_radius_[sort_idx] + dist_margin) {
       // compute distance penalty
@@ -345,153 +343,162 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
     idx += 1;
   }
 
-  if(quad_state_.v.norm() > 10)
-    collision_penalty *= log(1 + quad_state_.v.norm()) * collision_coeff_ / (total_detectable_obstacles + 1);
+  if (quad_state_.v.norm() > 10)
+    collision_penalty *= log(1 + quad_state_.v.norm()) * collision_coeff_ /
+                         (total_detectable_obstacles + 1);
   else
     collision_penalty = 0;
-   //logger_.info( to_string(  collision_penalty  ));
-}
+  // logger_.info( to_string(  collision_penalty  ));
 
 
-    // - go towards goal reward
-    Scalar dist_reward = goal_dist_rew_ * (1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
+  // - go towards goal reward
+  Scalar dist_reward =
+    goal_dist_rew_ * (1.0 - sqrt(abs(goal_pos_[0] - quad_state_.p(QS::POSX)) /
+                                 abs(max_dist_[0])));
 
- // - tracking a constant linear velocity
-  //Scalar lin_vel_reward =
-   // vel_coeff_ * (quad_state_.v - goal_linear_vel_).norm();
+  // - tracking a constant linear velocity
+  // Scalar lin_vel_reward =
+  // vel_coeff_ * (quad_state_.v - goal_linear_vel_).norm();
 
- // - time penalty
-   //Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
+  // - time penalty
+  // Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
 
   // - angular velocity penalty, to avoid oscillations
-  //const Scalar ang_vel_penalty = angular_vel_coeff_ * quad_state_.w.norm();
+  const Scalar ang_vel_penalty = angular_vel_coeff_ * quad_state_.w.norm();
 
-    //stampa quaternione
- // Scalar qi = 0;
- // for (int i = 0; i < 4; i++){
- //   qi = quad_state_.qx[i] - ref_qx_[i];
- //   attitude_penalty += qi * qi;
- // }
+  // stampa quaternione
+  // Scalar qi = 0;
+  // for (int i = 0; i < 4; i++){
+  //   qi = quad_state_.qx[i] - ref_qx_[i];
+  //   attitude_penalty += qi * qi;
+  // }
 
- Eigen::Vector3d pos_new(quad_state_.p(QS::POSX), quad_state_.p(QS::POSY), quad_state_.p(QS::POSZ));
- Eigen::Vector3d pos_old(quad_old_state_.p(QS::POSX), quad_old_state_.p(QS::POSY), quad_old_state_.p(QS::POSZ));
+  Eigen::Vector3d pos_new(quad_state_.p(QS::POSX), quad_state_.p(QS::POSY),
+                          quad_state_.p(QS::POSZ));
+  Eigen::Vector3d pos_old(quad_old_state_.p(QS::POSX),
+                          quad_old_state_.p(QS::POSY),
+                          quad_old_state_.p(QS::POSZ));
 
- Eigen::Vector3d drone_dir;
- Eigen::Vector3d WorldX(1,0,0);
- if(drone_orientation_.compare("global") == 0){
-      drone_dir = WorldX;
-      gg = "global";
- }else {
+  Eigen::Vector3d drone_dir;
+  Eigen::Vector3d WorldX(1, 0, 0);
+  string gg = " ";
+  if (drone_orientation_.compare("global") == 0) {
+    drone_dir = WorldX;
+    gg = "global";
+  } else {
+    drone_dir = (pos_new - pos_old) / getDistance(pos_new, pos_old);
+    gg = "local";
+  }
+  /* Non utilizzato perchè abbiamo usata la mmat. di rotazione che ci davano
+  loro Eigen::Quaterniond q; q.x() = quad_state_.qx(QS::ATTX); q.y() =
+  quad_state_.qx(QS::ATTY); q.z() = quad_state_.qx(QS::ATTZ); q.w() =
+  quad_state_.qx(QS::ATTW); gg = to_string(quad_state_.v(QS::VELX)) + " " +
+  to_string(quad_state_.v(QS::VELY))
+   + " " + to_string(quad_state_.qx(QS::VELZ)) + " "; */
+  // logger_.error(gg);
 
-      drone_dir = (pos_new - pos_old) / getDistance(pos_new, pos_old);
-      gg = "local";
- }
-/* Non utilizzato perchè abbiamo usata la mmat. di rotazione che ci davano loro
- Eigen::Quaterniond q;
-q.x() = quad_state_.qx(QS::ATTX);
-q.y() = quad_state_.qx(QS::ATTY);
-q.z() = quad_state_.qx(QS::ATTZ);
-q.w() = quad_state_.qx(QS::ATTW);
-gg = to_string(quad_state_.v(QS::VELX)) + " " + to_string(quad_state_.v(QS::VELY))
- + " " + to_string(quad_state_.qx(QS::VELZ)) + " "; */
-//logger_.error(gg);
-
-//Eigen::Matrix3d qx_rot_matrix = q.normalized().toRotationMatrix();
-Eigen::Matrix3d rot_mat = quad_state_.R();
-Eigen::Vector3d origin(1,0,0);
-//Eigen::Vector3d camera_dir =  qx_rot_matrix * origin;
-Eigen::Vector3d camera_dir2 =  rot_mat * origin;
-/*
-gg = " ";
- for(int i = 0; i < 3; i++)
-   gg += " " + to_string( camera_dir[i] );
-logger_.error(gg);*/
-
+  // Eigen::Matrix3d qx_rot_matrix = q.normalized().toRotationMatrix();
+  Eigen::Matrix3d rot_mat = quad_state_.R();
+  Eigen::Vector3d origin(1, 0, 0);
+  // Eigen::Vector3d camera_dir =  qx_rot_matrix * origin;
+  Eigen::Vector3d camera_dir2 = rot_mat * origin;
+  /*
   gg = " ";
    for(int i = 0; i < 3; i++)
-     gg += " " + to_string( camera_dir2[i] );
-     logger_.warn(gg);
+     gg += " " + to_string( camera_dir[i] );
+  logger_.error(gg);*/
 
 
-
- //dot product= 1 if same dir, -1 if opposite dir, 0 if normal diction (the vectors are normal to each other)
-//Scalar attitude_reward = 0;
-//drone_dir[0] *= -1.0;
-//drone_dir[1] *= -1.0;
-Scalar attitude_reward = drone_dir.dot(camera_dir2) * 0.5;
-//Scalar attitude_reward = (drone_dir.dot(camera_dir) + 1) / 2 -1;
-//Scalar attitude_reward= - (1- drone_dir.dot(camera_dir));
-logger_.info( to_string(attitude_reward) );
-
-{
- // attitude_penalty = attitude_ori_coeff_ * sqrt(attitude_penalty);
-  //Scalar qx = quad_state_.qx[0] - ref_qx_[0];
-  //Scalar qz = quad_state_.qx[2] - ref_qx_[2];
-  //Scalar attitude_penalty = attitude_ori_coeff_ * sqrt(qx * qx + qz * qz);
-    //for (int i = 0; i < 4; i++)
-   //gg += to_string(  (quad_old_state_.qx - ref_qx_) )[i]) + " ";
-   // gg = to_string(  );
-   //gg += to_string(qx) + " " + to_string(qz) + " " ;
-
-  //str[i] = to_string(   quad_state_.qx[i]     );
+  gg = " ";
+  for (int i = 0; i < 3; i++) gg += " " + to_string(camera_dir2[i]);
+  logger_.warn(gg);
 
 
-  //logger_.info( "angular velocit: " + str1 + " " + str2 + " " + str3);
- // logger_.info( "attitude : " + gg);
- } //OLD attitude penalty based on y and z
+  // dot product= 1 if same dir, -1 if opposite dir, 0 if normal diction (the
+  // vectors are normal to each other) Scalar attitude_reward = 0; drone_dir[0]
+  // *= -1.0; drone_dir[1] *= -1.0;
+  Scalar attitude_reward = drone_dir.dot(camera_dir2) * 0.5;
+  // Scalar attitude_reward = (drone_dir.dot(camera_dir) + 1) / 2 -1;
+  // Scalar attitude_reward= - (1- drone_dir.dot(camera_dir));
+  logger_.info(to_string(attitude_reward));
+
+  {
+    // attitude_penalty = attitude_ori_coeff_ * sqrt(attitude_penalty);
+    // Scalar qx = quad_state_.qx[0] - ref_qx_[0];
+    // Scalar qz = quad_state_.qx[2] - ref_qx_[2];
+    // Scalar attitude_penalty = attitude_ori_coeff_ * sqrt(qx * qx + qz * qz);
+    // for (int i = 0; i < 4; i++)
+    // gg += to_string(  (quad_old_state_.qx - ref_qx_) )[i]) + " ";
+    //  gg = to_string(  );
+    // gg += to_string(qx) + " " + to_string(qz) + " " ;
+
+    // str[i] = to_string(   quad_state_.qx[i]     );
+
+
+    // logger_.info( "angular velocit: " + str1 + " " + str2 + " " + str3);
+    // logger_.info( "attitude : " + gg);
+  }  // OLD attitude penalty based on y and z
 
 
   //  change progress reward as survive reward
-   Scalar total_reward =
-        dist_reward + survive_rew_ + attitude_reward; //dist_rew = movimento vs x, survive_rew= data ad ogni step, attitude_rew = rew se guarda nella dir giusta
+  Scalar total_reward = 0;
+  //     dist_reward + survive_rew_ + attitude_reward; //dist_rew = movimento vs
+  //     x, survive_rew= data ad ogni step, attitude_rew = rew se guarda nella
+  //     dir giusta
 
-    //lin_vel_reward + collision_penalty + ang_vel_penalty + survive_rew_;
-   //string str = to_string(   quad_state_.v.norm()   );
-  string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty)
-                  +  "  " +
-    to_string(attitude_reward) +  "  " + to_string(total_reward);
-  //logger_.info(str);
-  //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
+  // lin_vel_reward + collision_penalty + ang_vel_penalty + survive_rew_;
+  // string str = to_string(   quad_state_.v.norm()   );
+
+  // logger_.info(str);
+  // ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
 
 
-
-      //idea giuseppe: muro dietro al drone. Se va indietro lo saccagni
-  if(!pos_old[0] > pos_new[0]){ //se non ho fatto passo verso x
-    total_reward = 0; //non do reward per nulla
+  // idea giuseppe: muro dietro al drone. Se va indietro lo saccagni
+  if (!pos_old[0] > pos_new[0]) {  // se non ho fatto passo verso x
+    total_reward = 0;              // non do reward per nulla
+  } else {
+    if (attitude_reward > 0) {
+      total_reward = dist_reward * attitude_reward;
+    } else {
+      total_reward = 0;
+    }
   }
-  if(quad_state_.p(QS::POSX) > xMax){
-     xMax =  quad_state_.p(QS::POSX);
+
+  if (quad_state_.p(QS::POSX) > xMax) {
+    xMax = quad_state_.p(QS::POSX);
   }
-  if (xMax - 0.5 > quad_state_.p(QS::POSX)){
+  if (xMax - 0.5 > quad_state_.p(QS::POSX)) {  // muro reale dietro
     total_reward = -1;
   }
+  
+  string str = "  " + to_string(dist_reward) + "  " +
+               to_string(collision_penalty) + "  " +
+               to_string(attitude_reward) + "  " + to_string(total_reward);
 
-
-
-    // return all reward components for debug purposes
-    reward << dist_reward, collision_penalty,  ang_vel_penalty, survive_rew_, total_reward;
+  // return all reward components for debug purposes
+  reward << dist_reward, collision_penalty, ang_vel_penalty, survive_rew_,
+    total_reward;
   return true;
 }
 
-{
+
 bool VisionEnv::isTerminalState(Scalar &reward) {
+  Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
+  Scalar maxCollision = num_dynamic_objects_ + num_static_objects_;
 
- Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
- Scalar maxCollision = num_dynamic_objects_ + num_static_objects_;
-
-  //collsion
+  // collsion
   if (is_collision_) {
-      reward = -1.0;
-      std::cout << "Collision!\n";
-      return true;
+    reward = -1.0;
+    std::cout << "Collision!\n";
+    return true;
   }
 
- //simulation time out
- if (cmd_.t >= max_t_ - sim_dt_) {
-   reward = -10;
-   std::cout << "Timeout!\n";
-   return true;
- }
+  // simulation time out
+  if (cmd_.t >= max_t_ - sim_dt_) {
+    reward = -10;
+    std::cout << "Timeout!\n";
+    return true;
+  }
 
   // world boundling box check
   // - x, y, and z
@@ -502,41 +509,48 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
                  quad_state_.p(QS::POSY) <= world_box_[3] - safty_threshold;
   bool z_valid = quad_state_.x(QS::POSZ) >= world_box_[4] + safty_threshold &&
                  quad_state_.x(QS::POSZ) <= world_box_[5] - safty_threshold;
- if (!x_valid || !y_valid || !z_valid) {
-//    std::cout << "Drone X:" << quad_state_.p(QS::POSX) << "\n";
-//    std::cout << "Drone Y:" << quad_state_.p(QS::POSY) << "\n";
-//    std::cout << "Drone Z:" << quad_state_.p(QS::POSZ) << "\n";
-//
-//    if(!x_valid){
-//      std::cout << "Drone X " << quad_state_.p(QS::POSX) << " >= " << world_box_[0] + safty_threshold << " ?\n";
-//      std::cout << "Drone X " << quad_state_.p(QS::POSX) << " <= " << world_box_[1] - safty_threshold << " ?\n";
-//    }
-//
-//    if(!y_valid){
-//      std::cout << "Drone Y " << quad_state_.p(QS::POSY) << " >= " << world_box_[2] + safty_threshold << " ?\n";
-//      std::cout << "Drone Y " << quad_state_.p(QS::POSY) << " <= " << world_box_[3] - safty_threshold << " ?\n";
-//    }
-//
-//    if(!z_valid){
-//      std::cout << "Drone Z " << quad_state_.p(QS::POSZ) << " >= " << world_box_[4] + safty_threshold << " ?\n";
-//      std::cout << "Drone Z " << quad_state_.p(QS::POSZ) << " <= " << world_box_[5] - safty_threshold << " ?\n";
-//    }
+  if (!x_valid || !y_valid || !z_valid) {
+    //    std::cout << "Drone X:" << quad_state_.p(QS::POSX) << "\n";
+    //    std::cout << "Drone Y:" << quad_state_.p(QS::POSY) << "\n";
+    //    std::cout << "Drone Z:" << quad_state_.p(QS::POSZ) << "\n";
+    //
+    //    if(!x_valid){
+    //      std::cout << "Drone X " << quad_state_.p(QS::POSX) << " >= " <<
+    //      world_box_[0] + safty_threshold << " ?\n"; std::cout << "Drone X "
+    //      << quad_state_.p(QS::POSX) << " <= " << world_box_[1] -
+    //      safty_threshold << " ?\n";
+    //    }
+    //
+    //    if(!y_valid){
+    //      std::cout << "Drone Y " << quad_state_.p(QS::POSY) << " >= " <<
+    //      world_box_[2] + safty_threshold << " ?\n"; std::cout << "Drone Y "
+    //      << quad_state_.p(QS::POSY) << " <= " << world_box_[3] -
+    //      safty_threshold << " ?\n";
+    //    }
+    //
+    //    if(!z_valid){
+    //      std::cout << "Drone Z " << quad_state_.p(QS::POSZ) << " >= " <<
+    //      world_box_[4] + safty_threshold << " ?\n"; std::cout << "Drone Z "
+    //      << quad_state_.p(QS::POSZ) << " <= " << world_box_[5] -
+    //      safty_threshold << " ?\n";
+    //    }
 
-    //std::cout << "XYZ not valid\n";
+    // std::cout << "XYZ not valid\n";
 
     reward = -1.0;
     return true;
   }
 
 
-//for this competitio, only evaluate x position
-if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 10){
-  reward = 10.0;
-  //Scalar collisionPercentage = (maxCollision - num_collision) / (maxCollision);
-  reward = reward;
-  std::cout << "reached target position!\n";
-  return true;
-}
+  // for this competitio, only evaluate x position
+  if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 10) {
+    reward = 10.0;
+    // Scalar collisionPercentage = (maxCollision - num_collision) /
+    // (maxCollision);
+    reward = reward;
+    std::cout << "reached target position!\n";
+    return true;
+  }
 
   return false;
 }
@@ -613,14 +627,14 @@ bool VisionEnv::loadParam(const YAML::Node &cfg) {
     std::vector<Scalar> goal_vel_vec =
       cfg["environment"]["goal_vel"].as<std::vector<Scalar>>();
     goal_linear_vel_ = Vector<3>(goal_vel_vec.data());
-    //my code:
+    // my code:
     std::vector<Scalar> goal_pos_vec =
       cfg["environment"]["goal_pos"].as<std::vector<Scalar>>();
-       goal_pos_ = Vector<3>(goal_pos_vec.data());
+    goal_pos_ = Vector<3>(goal_pos_vec.data());
 
     std::vector<Scalar> ref_qx =
       cfg["environment"]["ref_qx"].as<std::vector<Scalar>>();
-      ref_qx_= Vector<4>(ref_qx.data());
+    ref_qx_ = Vector<4>(ref_qx.data());
 
     max_detection_range_ =
       cfg["environment"]["max_detection_range"].as<Scalar>();
@@ -691,10 +705,9 @@ bool VisionEnv::configDynamicObjects(const std::string &yaml_file) {
   int num_objects = cfg_node["N"].as<int>();
   // create static objects
   for (int i = 0; i < num_objects; i++) {
-
     std::string object_id = "Object" + std::to_string(i + 1);
     std::string prefab_id = cfg_node[object_id]["prefab"].as<std::string>();
-  //  prefab_id = "rpg_box0" + to_string(i % 3 + 1);
+    //  prefab_id = "rpg_box0" + to_string(i % 3 + 1);
     std::shared_ptr<UnityObject> obj =
       std::make_shared<UnityObject>(object_id, prefab_id);
 
@@ -740,7 +753,7 @@ bool VisionEnv::configStaticObjects(const std::string &csv_file) {
     // Read column 0 for time
     std::string object_id = "StaticObject" + std::to_string(i + 1);
     std::string prefab_id = (std::string)row[0];
-    //prefab_id = "rpg_box03";
+    // prefab_id = "rpg_box03";
     //
     std::shared_ptr<UnityObject> obj =
       std::make_shared<UnityObject>(object_id, prefab_id);
@@ -846,11 +859,10 @@ bool VisionEnv::addQuadrotorToUnity(const std::shared_ptr<UnityBridge> bridge) {
   return true;
 }
 
-void VisionEnv::setFakeQuadrotorScale(float scale){
-  quadrotorScale_ = scale;
-}
+void VisionEnv::setFakeQuadrotorScale(float scale) { quadrotorScale_ = scale; }
 
-bool VisionEnv::setUnity(bool render, const int input_port, const int output_port) {
+bool VisionEnv::setUnity(bool render, const int input_port,
+                         const int output_port) {
   unity_render_ = render;
   if (!unity_render_ || unity_bridge_ptr_ != nullptr) {
     logger_.warn(
@@ -935,4 +947,3 @@ std::ostream &operator<<(std::ostream &os, const VisionEnv &vision_env) {
 }
 
 }  // namespace flightlib
-}
