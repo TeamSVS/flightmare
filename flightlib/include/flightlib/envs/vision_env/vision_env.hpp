@@ -114,6 +114,14 @@ class VisionEnv final : public EnvBase {
   std::unordered_map<std::string, float> extra_info_;
 
  private:
+  //utility
+  Scalar computeCollisionApproachPenalty();
+  Scalar computeXprogressReward();
+  Scalar computeLinearVelReward();
+  Scalar computeTimePenalty(Scalar time_weight);
+  Scalar computeCamOrientationReward();
+  Scalar multiSummedComponentsReward(Ref<Vector<>> reward);
+  //others
   bool computeReward(Ref<Vector<>> reward);
   void init();
   int env_id_;

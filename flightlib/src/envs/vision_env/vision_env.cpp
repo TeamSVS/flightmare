@@ -318,10 +318,8 @@ static Scalar dotProduct(Vector<3> vect_A, Vector<3> vect_B) {
   return product;
 }
 
-bool VisionEnv::computeReward(Ref<Vector<>> reward) {
-  // ---------------------- reward function design
-  // - compute approach penalty
-
+//_____________START reward components calculation functions_____________//
+Scalar VisionEnv::computeCollisionApproachPenalty(){
   Scalar collision_penalty = 0.0;
   Scalar total_detectable_obstacles = 0;
   size_t idx = 0;
@@ -351,37 +349,39 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   // logger_.info( to_string(  collision_penalty  ));
 
 
-  // - go towards goal reward
-  Scalar dist_reward =
-    goal_dist_rew_ * (1.0 - sqrt(abs(goal_pos_[0] - quad_state_.p(QS::POSX)) /
+    return collision_penalty;
+}
+Scalar VisionEnv::computeXprogressReward(){
+   return goal_dist_rew_ * (1.0 - sqrt(abs(goal_pos_[0] - quad_state_.p(QS::POSX)) /
                                  abs(max_dist_[0])));
+}
+Scalar VisionEnv::computeLinearVelReward(){
 
-  // - tracking a constant linear velocity
-  // Scalar lin_vel_reward =
-  // vel_coeff_ * (quad_state_.v - goal_linear_vel_).norm();
+    return vel_coeff_ * (quad_state_.v - goal_linear_vel_).norm();
+}
+Scalar VisionEnv::computeTimePenalty(Scalar time_weight){
+    return time_weight * (max_t_ - cmd_.t) / max_t_;
 
-  // - time penalty
-  // Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
+}
+Scalar VisionEnv::computeCamOrientationReward(){
+  {/*
+      Scalar qi = 0;
+      for (int i = 0; i < 4; i++){
+        qi = quad_state_.qx[i] - ref_qx_[i];
+        attitude_penalty += qi * qi;
+      }*/
+  } //Old attitude penalty version
 
-  // - angular velocity penalty, to avoid oscillations
-  const Scalar ang_vel_penalty = angular_vel_coeff_ * quad_state_.w.norm();
-
-  // stampa quaternione
-  // Scalar qi = 0;
-  // for (int i = 0; i < 4; i++){
-  //   qi = quad_state_.qx[i] - ref_qx_[i];
-  //   attitude_penalty += qi * qi;
-  // }
-
+  //init old and new drone position
   Eigen::Vector3d pos_new(quad_state_.p(QS::POSX), quad_state_.p(QS::POSY),
                           quad_state_.p(QS::POSZ));
   Eigen::Vector3d pos_old(quad_old_state_.p(QS::POSX),
                           quad_old_state_.p(QS::POSY),
                           quad_old_state_.p(QS::POSZ));
-
   Eigen::Vector3d drone_dir;
-  Eigen::Vector3d WorldX(1, 0, 0);
+  Eigen::Vector3d WorldX(1, 0, 0); //goal direction
   string gg = " ";
+  // if "global" the target dir is goal, if "local" the target dir is the drone dir
   if (drone_orientation_.compare("global") == 0) {
     drone_dir = WorldX;
     gg = "global";
@@ -389,38 +389,42 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
     drone_dir = (pos_new - pos_old) / getDistance(pos_new, pos_old);
     gg = "local";
   }
-  /* Non utilizzato perchè abbiamo usata la mmat. di rotazione che ci davano
-  loro Eigen::Quaterniond q; q.x() = quad_state_.qx(QS::ATTX); q.y() =
-  quad_state_.qx(QS::ATTY); q.z() = quad_state_.qx(QS::ATTZ); q.w() =
-  quad_state_.qx(QS::ATTW); gg = to_string(quad_state_.v(QS::VELX)) + " " +
-  to_string(quad_state_.v(QS::VELY))
-   + " " + to_string(quad_state_.qx(QS::VELZ)) + " "; */
-  // logger_.error(gg);
 
-  // Eigen::Matrix3d qx_rot_matrix = q.normalized().toRotationMatrix();
+  {
+  /* attitude penalty using quaternions
+      Eigen::Quaterniond q;
+      q.x() = quad_state_.qx(QS::ATTX);
+      q.y() = quad_state_.qx(QS::ATTY);
+      q.z() = quad_state_.qx(QS::ATTZ);
+      q.w() = quad_state_.qx(QS::ATTW);
+      gg = to_string(quad_state_.v(QS::VELX)) + " " +
+      to_string(quad_state_.v(QS::VELY))
+       + " " + to_string(quad_state_.qx(QS::VELZ)) + " ";
+       logger_.error(gg); //print quaternion
+       Eigen::Matrix3d qx_rot_matrix = q.normalized().toRotationMatrix(); //compute rot matrix
+       Eigen::Vector3d origin(1, 0, 0); //initial camera orientation
+       Eigen::Vector3d camera_dir =  qx_rot_matrix * origin; //compute camera dir
+       //dot product=
+       //1 if same dir,
+       //-1 if opposite dir,
+       //0 if normal direction (the vectors are normal to each other)
+       Scalar attitude_reward = 0;
+       drone_dir[0]*= -1.0;
+       drone_dir[1] *= -1.0;
+  */
+   } //old attitude penalty using quaternions
   Eigen::Matrix3d rot_mat = quad_state_.R();
-  Eigen::Vector3d origin(1, 0, 0);
-  // Eigen::Vector3d camera_dir =  qx_rot_matrix * origin;
+  Eigen::Vector3d origin(1, 0, 0); //initial camera orientation
   Eigen::Vector3d camera_dir2 = rot_mat * origin;
-  /*
-  gg = " ";
-   for(int i = 0; i < 3; i++)
-     gg += " " + to_string( camera_dir[i] );
-  logger_.error(gg);*/
 
-
+  //print camera direction
   gg = " ";
   for (int i = 0; i < 3; i++) gg += " " + to_string(camera_dir2[i]);
   logger_.warn(gg);
 
-
-  // dot product= 1 if same dir, -1 if opposite dir, 0 if normal diction (the
-  // vectors are normal to each other) Scalar attitude_reward = 0; drone_dir[0]
-  // *= -1.0; drone_dir[1] *= -1.0;
-  Scalar attitude_reward = drone_dir.dot(camera_dir2) * 0.5;
-  // Scalar attitude_reward = (drone_dir.dot(camera_dir) + 1) / 2 -1;
-  // Scalar attitude_reward= - (1- drone_dir.dot(camera_dir));
-  logger_.info(to_string(attitude_reward));
+  //dot product= 1 if same dir,-1 if opposite dir, 0 if dirs normal to each other
+  return drone_dir.dot(camera_dir2) * 0.5;
+  //return  (drone_dir.dot(camera_dir) + 1) / 2 -1; //normalized in interval [-1,0]
 
   {
     // attitude_penalty = attitude_ori_coeff_ * sqrt(attitude_penalty);
@@ -438,23 +442,59 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
     // logger_.info( "angular velocit: " + str1 + " " + str2 + " " + str3);
     // logger_.info( "attitude : " + gg);
   }  // OLD attitude penalty based on y and z
+}
+//_____________END reward components calculation functions END_____________//
+Scalar VisionEnv::multiSummedComponentsReward(Ref<Vector<>> reward){
+// 0 to deactivate reward component
+  Scalar collision_weight = 0; //for approaching or colliding with the obstacle
+  Scalar distance_weight = 1; //for moving towards x
+  Scalar lin_vel_weight = 0; //for tracking a constant linear velocity
+  Scalar time_weight = 0; //for having time left
+  Scalar ang_vel_weight = 0; //for avoiding oscillations
+  Scalar attitude_weight = 1; //for orienting the camera in the target direction
+  Scalar survive_weight = 0; //for surviving the step
 
+  // - compute approach penalty: from 0 if far from the obstacle, to 1 if collides
+  Scalar collision_penalty = computeCollisionApproachPenalty() * collision_weight;
+  // - go towards goal reward
+  Scalar dist_reward = computeXprogressReward() * distance_weight;
+  // - tracking a constant linear velocity
+  Scalar lin_vel_reward = computeLinearVelReward() * lin_vel_weight;
+  // - time penalty
+  Scalar time_percentage = computeTimePenalty(1) * time_weight;
+  // - angular velocity penalty, to avoid oscillations
+  const Scalar ang_vel_penalty = angular_vel_coeff_ * quad_state_.w.norm() * ang_vel_weight;
+  // - reward based on the deviation between camera dir and either goal or drone dir
+  Scalar attitude_reward = computeCamOrientationReward() * attitude_weight;
+  // - reward for surviving each step
+  Scalar survive_rew = survive_rew_ * survive_weight;
 
-  //  change progress reward as survive reward
+  Scalar total_reward = dist_reward +
+                       survive_rew +
+                       attitude_reward +
+                       lin_vel_reward +
+                       collision_penalty +
+                       ang_vel_penalty +
+                       time_percentage;
+
+  //debugging stuff
+    string str = "  " + to_string(dist_reward) + "  " +
+               to_string(collision_penalty) + "  " +
+               to_string(attitude_reward) + "  " + to_string(total_reward);
+  std::cout << "\t\t\t\t" + to_string(total_reward) << endl;
+  // return all reward components for debug purposes
+  reward << dist_reward, collision_penalty, ang_vel_penalty, survive_rew_,
+    total_reward;
+  return total_reward;
+}
+
+bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   Scalar total_reward = 0;
-  //     dist_reward + survive_rew_ + attitude_reward; //dist_rew = movimento vs
-  //     x, survive_rew= data ad ogni step, attitude_rew = rew se guarda nella
-  //     dir giusta
-
-  // lin_vel_reward + collision_penalty + ang_vel_penalty + survive_rew_;
-  // string str = to_string(   quad_state_.v.norm()   );
-
-  // logger_.info(str);
-  // ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
-
-
-  // idea giuseppe: muro dietro al drone. Se va indietro lo saccagni
-  if (!pos_old[0] > pos_new[0]) {  // se non ho fatto passo verso x
+  //total_reward = multiSummedComponentsReward(reward);
+  Scalar attitude_reward = computeCamOrientationReward();
+  Scalar dist_reward = computeXprogressReward();
+  // idea giuseppe: muro dietro al drone. Se va indietro lo penalizzi
+  if (quad_state_.p(QS::POSX) <= quad_old_state_.p(QS::POSX)) {  // se non ho fatto passo verso x
     total_reward = 0;              // non do reward per nulla
   } else {
     if (attitude_reward > 0) {
@@ -471,13 +511,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
     total_reward = -1;
   }
 
-  string str = "  " + to_string(dist_reward) + "  " +
-               to_string(collision_penalty) + "  " +
-               to_string(attitude_reward) + "  " + to_string(total_reward);
-  std::cout << "\t\t\t\t" + to_string(total_reward) << endl;
-  // return all reward components for debug purposes
-  reward << dist_reward, collision_penalty, ang_vel_penalty, survive_rew_,
-    total_reward;
+
   return true;
 }
 
