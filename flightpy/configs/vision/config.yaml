@@ -50,7 +50,7 @@ simulation:
   num_envs: 1
   num_threads: 5
   heartbeat: yes
-  fakeQuadrotorScaleSize: 1
+  fakeQuadrotorScaleSize: 0.001
 
 quadrotor_dynamics:
   mass: 0.752

@@ -448,7 +448,7 @@ logger_.error(gg);
 //Scalar attitude_reward = 0;
 //drone_dir[0] *= -1.0;
 //drone_dir[1] *= -1.0;
-Scalar attitude_reward = drone_dir.dot(camera_dir2);
+Scalar attitude_reward = drone_dir.dot(camera_dir2) * 0.5;
 //Scalar attitude_reward = (drone_dir.dot(camera_dir) + 1) / 2 -1;
 //Scalar attitude_reward= - (1- drone_dir.dot(camera_dir));
 logger_.info( to_string(attitude_reward) );
@@ -480,14 +480,14 @@ logger_.info( to_string(attitude_reward) );
   //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
 
 
-  //
-  //     //idea giuseppe
-  // if(quad_state_.p(QS::POSX) > xMax){
-  //    xMax =  quad_state_.p(QS::POSX);
-  // }
-  // if (xMax - 0.5 > quad_state_.p(QS::POSX)){
-  //   total_reward = -1;
-  // }
+
+      //idea giuseppe
+  if(quad_state_.p(QS::POSX) > xMax){
+     xMax =  quad_state_.p(QS::POSX);
+  }
+  if (xMax - 0.5 > quad_state_.p(QS::POSX)){
+    total_reward = -1;
+  }
 
 
 
