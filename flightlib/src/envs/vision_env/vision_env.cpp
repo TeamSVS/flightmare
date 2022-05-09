@@ -422,11 +422,11 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
       Scalar alpha = radius * 180 / abs(obstacle_dis * 3.141592653589793);
 
       if(theta < alpha && theta == theta && alpha == alpha){ //non modificare pls
-          // collision_penalty = (1 / 10 - 1 / obstacle_dis);
-          // if(collision_penalty < -1 ){
-          //   collision_penalty = -1;
-          // }
-          collision_penalty -= 1/(0.3 * pow(obstacle_dis, 2.71) + 1);
+           collision_penalty = (1 / 10 - 1 / obstacle_dis);
+           if(collision_penalty < -1 ){
+             collision_penalty = -1;
+           }
+          //collision_penalty -= 1/(0.3 * pow(obstacle_dis, 2.71) + 1);
       }
 
     //  if(theta != theta || alpha != alpha)
@@ -498,25 +498,25 @@ Scalar attitude_reward = drone_dir.dot(camera_dir) * 0.5;
 
   //str[i] = to_string(   quad_state_.qx[i]     );
   //idea giuseppe
-  // if(quad_state_.p(QS::POSX) > xMax){
-  //   dist_reward = dist_reward *(1 + collision_penalty);
-  //   xMax =  quad_state_.p(QS::POSX);
-  // }else{
-  //   dist_reward = 0;
-  // }
+   if(quad_state_.p(QS::POSX) > xMax){
+     dist_reward = dist_reward *(1 + collision_penalty);
+     xMax =  quad_state_.p(QS::POSX);
+   }else{
+     dist_reward = 0;
+   }
 
   //logger_.info( "angular velocit: " + str1 + " " + str2 + " " + str3);
  // logger_.info( "attitude : " + gg);
 
   //  change progress reward as survive reward
    Scalar total_reward =
-         survive_rew_ + dist_reward + attitude_reward + collision_penalty;
+         dist_reward * attitude_reward ;
     //lin_vel_reward + collision_penalty + ang_vel_penalty + survive_rew_;
    //string str = to_string(   quad_state_.v.norm()   );
-  string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty)
-                  +  "  " +
-    to_string(attitude_reward) +  "  " + to_string(total_reward);
-  logger_.warn(str);
+  //string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty)
+  //                +  "  " +
+  //  to_string(attitude_reward) +  "  " + to_string(total_reward);
+  //logger_.warn(str);
   //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
 
 
