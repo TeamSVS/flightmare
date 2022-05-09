@@ -464,7 +464,7 @@ Scalar VisionEnv::multiSummedComponentsReward(){
 
   // - compute approach penalty: from 0 if far from the obstacle, to 1 if collides
   Scalar collision_penalty = computeCollisionApproachPenalty() * collision_weight;
-  // - go towards goal reward
+  // - go towards goal reward range [0,1]
   Scalar dist_reward = computeXprogressReward() * distance_weight;
   // - tracking a constant linear velocity
   Scalar lin_vel_reward = computeLinearVelReward() * lin_vel_weight;
@@ -492,6 +492,10 @@ Scalar VisionEnv::multiSummedComponentsReward(){
                to_string(attitude_reward) + "  " + to_string(total_reward);
   std::cout << "\t\t\t\t" + to_string(total_reward) << endl;
 
+  Scalar max_possible_rew = survive_weight + attitude_weight + ang_vel_weight + time_weight + lin_vel_weight + distance_weight + collision_weight;
+  Scalar min_possible_rew = - max_possible_rew;
+  //normalize total reward from -1 to 1
+  total_reward = ((max_possible_rew-min_possible_rew)*(total_reward - min_possible_rew) / (max_possible_rew - min_possible_rew)) + min_possible_rew;
   return total_reward;
 }
 Scalar VisionEnv::camAndXBasedReward(){
@@ -525,10 +529,10 @@ Scalar VisionEnv::newReward(){
 //_________MAIN REWARD FUNCTION: THE ONE THAT CALLS THE OTHERS_________//
 bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   Scalar total_reward = 0;
-  //total_reward = multiSummedComponentsReward(); //needs wall behind patch
+  total_reward = multiSummedComponentsReward(); //needs wall behind patch
   //total_reward = wallBehindPatch(total_reward, 0.5);
   //total_reward = camAndXBasedReward();
-  total_reward = newReward();
+  //total_reward = newReward();
   reward << total_reward;
   return true;
 }
