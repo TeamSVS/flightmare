@@ -401,19 +401,19 @@ Eigen::Vector3d camera_dir =  rot_mat * origin;
 Scalar attitude_reward = 0.5 * tanh(2.2 * drone_dir.dot(camera_dir));
 
   //idea giuseppe
-  if(quad_state_.p(QS::POSX) > xMax){
-    dist_reward = dist_reward *(1 + collision_penalty);
-    xMax =  quad_state_.p(QS::POSX);
-  }else{
-    dist_reward = 0;
-  }
+  // if(quad_state_.p(QS::POSX) > xMax){
+  //   dist_reward = dist_reward *(1 + codrone_dir.dot(camera_dir)llision_penalty);
+  //   xMax =  quad_state_.p(QS::POSX);
+  // }else{
+  //   dist_reward = 0;
+  // }
 
   //logger_.info( "angular velocit: " + str1 + " " + str2 + " " + str3);
  // logger_.info( "attitude : " + gg);
 
   //  change progress reward as survive reward
    Scalar total_reward =
-         survive_rew_ + dist_reward * attitude_reward * collision_penalty;
+         survive_rew_ + dist_reward + attitude_reward + collision_penalty;
   string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty)
                   +  "  " +
     to_string(attitude_reward) +  "  " + to_string(total_reward);
@@ -421,9 +421,9 @@ Scalar attitude_reward = 0.5 * tanh(2.2 * drone_dir.dot(camera_dir));
   //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
 
 
-  //
-  // if(quad_state_.p(QS::POSX) > xMax)
-  //    xMax =  quad_state_.p(QS::POSX);
+
+  if(quad_state_.p(QS::POSX) > xMax)
+     xMax =  quad_state_.p(QS::POSX);
 
   if (xMax - 0.5 > quad_state_.p(QS::POSX)){
     total_reward = -1;
@@ -450,7 +450,7 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
 
  //simulation time out
  if (cmd_.t >= max_t_ - sim_dt_) {
-   reward = -10;
+   reward = -1000;
    std::cout << "Timeout!\n";
    return true;
  }
@@ -465,16 +465,16 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
   bool z_valid = quad_state_.x(QS::POSZ) >= world_box_[4] + safty_threshold &&
                  quad_state_.x(QS::POSZ) <= world_box_[5] - safty_threshold;
  if (!x_valid || !y_valid || !z_valid) {
-    reward = -1.0;
+    reward = -1000.0;
     return true;
   }
 
 
 //for this competitio, only evaluate x position
 if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 10){
-  reward = 20.0;
+  reward = 2000.0;
   //Scalar collisionPercentage = (maxCollision - num_collision) / (maxCollision);
-  reward = reward * time_percentage;
+  //reward = reward;
   std::cout << "reached target position!\n";
   return true;
 }
