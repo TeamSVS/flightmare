@@ -370,15 +370,15 @@ Scalar VisionEnv::computeCamOrientationReward(){
   Eigen::Vector3d pos_old(quad_old_state_.p(QS::POSX),
                           quad_old_state_.p(QS::POSY),
                           quad_old_state_.p(QS::POSZ));
-  Eigen::Vector3d drone_dir;
+  Eigen::Vector3d target_dir;
   Eigen::Vector3d WorldX(1, 0, 0); //goal direction
   string gg = " ";
   // if "global" the target dir is goal, if "local" the target dir is the drone dir
   if (drone_orientation_.compare("global") == 0) {
-    drone_dir = WorldX;
+    target_dir = WorldX;
     gg = "global";
   } else {
-    drone_dir = (pos_new - pos_old) / getDistance(pos_new, pos_old);
+    target_dir = (pos_new - pos_old) / getDistance(pos_new, pos_old);
     gg = "local";
   }
 
@@ -407,16 +407,17 @@ Scalar VisionEnv::computeCamOrientationReward(){
    } //old attitude penalty using quaternions
   Eigen::Matrix3d rot_mat = quad_state_.R();
   Eigen::Vector3d origin(1, 0, 0); //initial camera orientation
-  Eigen::Vector3d camera_dir2 = rot_mat * origin;
+  Eigen::Vector3d camera_dir = rot_mat * origin;
 
   //print camera direction
   gg = " ";
-  for (int i = 0; i < 3; i++) gg += " " + to_string(camera_dir2[i]);
+  for (int i = 0; i < 3; i++) gg += " " + to_string(camera_dir[i]);
   logger_.warn(gg);
 
   //dot product= 1 if same dir,-1 if opposite dir, 0 if dirs normal to each other
-  return drone_dir.dot(camera_dir2) * 0.5;
-  //return  (drone_dir.dot(camera_dir) + 1) / 2 -1; //normalized in interval [-1,0]
+  //return (target_dir.dot(camera_dir) + 1) / 2 -1; //normalized in interval [-1,0]
+  return target_dir.dot(camera_dir);
+
 
   {
     // attitude_penalty = attitude_ori_coeff_ * sqrt(attitude_penalty);
@@ -435,11 +436,11 @@ Scalar VisionEnv::computeCamOrientationReward(){
     // logger_.info( "attitude : " + gg);
   }  // OLD attitude penalty based on y and z
 }
-Scalar VisionEnv::wallBehindPatch(Scalar current_tot_reward){
+Scalar VisionEnv::wallBehindPatch(Scalar current_tot_reward, Scalar margin){
   if (quad_state_.p(QS::POSX) > xMax) {
     xMax = quad_state_.p(QS::POSX);
   }
-  if (xMax - 0.5 > quad_state_.p(QS::POSX)) {  // muro reale dietro
+  if (xMax - margin > quad_state_.p(QS::POSX)) {  // muro reale dietro
     return -1;
   }
   return current_tot_reward;
@@ -450,12 +451,12 @@ Scalar VisionEnv::wallBehindPatch(Scalar current_tot_reward){
 Scalar VisionEnv::multiSummedComponentsReward(){
 // 0 to deactivate reward component
   Scalar collision_weight = 0; //for approaching or colliding with the obstacle
-  Scalar distance_weight = 1; //for moving towards x
+  Scalar distance_weight = 2; //for moving towards x
   Scalar lin_vel_weight = 0; //for tracking a constant linear velocity
   Scalar time_weight = 0; //for having time left
   Scalar ang_vel_weight = 0; //for avoiding oscillations
   Scalar attitude_weight = 1; //for orienting the camera in the target direction
-  Scalar survive_weight = 0; //for surviving the step
+  Scalar survive_weight = 1; //for surviving the step
 
   // - compute approach penalty: from 0 if far from the obstacle, to 1 if collides
   Scalar collision_penalty = computeCollisionApproachPenalty() * collision_weight;
@@ -468,7 +469,9 @@ Scalar VisionEnv::multiSummedComponentsReward(){
   // - angular velocity penalty, to avoid oscillations
   const Scalar ang_vel_penalty = angular_vel_coeff_ * quad_state_.w.norm() * ang_vel_weight;
   // - reward based on the deviation between camera dir and either goal or drone dir
-  Scalar attitude_reward = computeCamOrientationReward() * attitude_weight;
+  Scalar attitude_reward = computeCamOrientationReward();
+  attitude_reward = (attitude_reward + 1) / 2 -1; //normalize between [-1,0]
+  attitude_reward *= attitude_weight;
   // - reward for surviving each step
   Scalar survive_rew = survive_rew_ * survive_weight;
 
@@ -507,14 +510,13 @@ Scalar VisionEnv::camAndXBasedReward(){
 //_________MAIN REWARD FUNCTION: THE ONE THAT CALLS THE OTHERS_________//
 bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   Scalar total_reward = 0;
-  //total_reward = multiSummedComponentsReward(reward); //needs wall behind patch
-  //total_reward = wallBehindPatch(total_reward);
-  total_reward = camAndXBasedReward();
+  total_reward = multiSummedComponentsReward(); //needs wall behind patch
+  total_reward = wallBehindPatch(total_reward, 0.5);
+  //total_reward = camAndXBasedReward();
 
   reward << total_reward;
   return true;
 }
-
 
 bool VisionEnv::isTerminalState(Scalar &reward) {
   Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
@@ -589,7 +591,6 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
   return false;
 }
 
-
 bool VisionEnv::getQuadAct(Ref<Vector<>> act) const {
   if (cmd_.t >= 0.0 && pi_act_.allFinite() && (act.size() == pi_act_.size())) {
     act = pi_act_;
@@ -623,7 +624,6 @@ bool VisionEnv::getDepthImage(Ref<DepthImgVector<>> depth_img) {
   return true;
 }
 
-
 bool VisionEnv::getImage(Ref<ImgVector<>> img, const bool rgb) {
   if (!rgb_camera_) {
     logger_.error("No Camera! Cannot retrieve Images.");
@@ -651,7 +651,6 @@ bool VisionEnv::getImage(Ref<ImgVector<>> img, const bool rgb) {
   }
   return true;
 }
-
 
 bool VisionEnv::loadParam(const YAML::Node &cfg) {
   if (cfg["environment"]) {
@@ -932,13 +931,11 @@ bool VisionEnv::setUnity(bool render) {
   return true;
 }
 
-
 bool VisionEnv::connectUnity(void) {
   if (unity_bridge_ptr_ == nullptr) return false;
   unity_ready_ = unity_bridge_ptr_->connectUnity(scene_id_);
   return unity_ready_;
 }
-
 
 FrameID VisionEnv::updateUnity(const FrameID frame_id) {
   if (unity_render_ && unity_ready_) {
@@ -948,7 +945,6 @@ FrameID VisionEnv::updateUnity(const FrameID frame_id) {
     return 0;
   }
 }
-
 
 void VisionEnv::disconnectUnity(void) {
   if (unity_bridge_ptr_ != nullptr) {
