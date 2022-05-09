@@ -417,21 +417,23 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
                     obstacle_dis : max_detection_range_;
       Eigen::Vector3d obs_dir = ob_relative_pos / obstacle_dis;
       Scalar dot_theta = abs(obs_dir.dot(drone_dir));
-      Scalar theta =
-      Scalar alpha = radius * 180 / (obstacle_dis * 3.141592653589793);
+      Scalar theta = acos(dot_theta); // the magnitude of these 2 dirs are one.
+      theta = theta * 180 / abs(obstacle_dis * 3.141592653589793);
+      Scalar alpha = radius * 180 / abs(obstacle_dis * 3.141592653589793);
 
-      if(theta < alpha){
-          collision_penalty = (1 / 10 - 1 / obstacle_dis);
-          if(collision_penalty < -1 ){
-            collision_penalty = -1;
-          }
+      if(theta < alpha && theta == theta && alpha == alpha){ //non modificare pls
+          // collision_penalty = (1 / 10 - 1 / obstacle_dis);
+          // if(collision_penalty < -1 ){
+          //   collision_penalty = -1;
+          // }
+          collision_penalty -= 1/(0.3 * pow(obstacle_dis, 2.71) + 1);
       }
 
-
-      logger_.warn(  to_string(i) + " " +  to_string(obstacle_dis) );
+    //  if(theta != theta || alpha != alpha)
+      //logger_.warn(  to_string(i) + " " +  to_string(theta) + " " + to_string(alpha) );
   }
 
-
+  //logger_.warn( to_string(collision_penalty));
  // Scalar a = quad_state_.qx(QS::ATTW);
  // Scalar b = quad_state_.qx(QS::ATTX);
  // Scalar c = quad_state_.qx(QS::ATTY);
@@ -449,19 +451,19 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
  //  {2 * b * c + 2 * a * d, a*a - b*b + c *c- d *d, 2 * c * d - 2 * a * b},
  //  {2 * b * d - 2 * a * c, 2 * c * d + 2 * a * b, a*a - b *b - c *c + d*d}};
 
- Eigen::Quaterniond q;
-q.x() = quad_state_.qx(QS::ATTX);
-q.y() = quad_state_.qx(QS::ATTY);
-q.z() = quad_state_.qx(QS::ATTZ);
-q.w() = quad_state_.qx(QS::ATTW);
-gg = to_string(quad_state_.v(QS::VELX)) + " " + to_string(quad_state_.v(QS::VELY))
- + " " + to_string(quad_state_.qx(QS::VELZ)) + " ";
+//  Eigen::Quaterniond q;
+// q.x() = quad_state_.qx(QS::ATTX);
+// q.y() = quad_state_.qx(QS::ATTY);
+// q.z() = quad_state_.qx(QS::ATTZ);
+// q.w() = quad_state_.qx(QS::ATTW);
+// gg = to_string(quad_state_.v(QS::VELX)) + " " + to_string(quad_state_.v(QS::VELY))
+//  + " " + to_string(quad_state_.qx(QS::VELZ)) + " ";
 //logger_.error(gg);
-Eigen::Matrix3d qx_rot_matrix = q.normalized().toRotationMatrix();
+//Eigen::Matrix3d qx_rot_matrix = q.normalized().toRotationMatrix();
 Eigen::Matrix3d rot_mat = quad_state_.R();
 Eigen::Vector3d origin(1,0,0);
-Eigen::Vector3d camera_dir =  qx_rot_matrix * origin;
-Eigen::Vector3d camera_dir2 =  rot_mat * origin;
+//Eigen::Vector3d camera_dir =  qx_rot_matrix * origin;
+Eigen::Vector3d camera_dir =  rot_mat * origin;
 
 // gg = " ";
 //  for(int i = 0; i < 3; i++)
@@ -479,7 +481,7 @@ Eigen::Vector3d camera_dir2 =  rot_mat * origin;
 //Scalar attitude_reward = 0;
 //drone_dir[0] *= -1.0;
 //drone_dir[1] *= -1.0;
-Scalar attitude_reward = drone_dir.dot(camera_dir2) * 0.5;
+Scalar attitude_reward = drone_dir.dot(camera_dir) * 0.5;
 //Scalar attitude_reward = (drone_dir.dot(camera_dir) + 1) / 2 -1;
 //Scalar attitude_reward= - (1- drone_dir.dot(camera_dir));
 //logger_.info( to_string(attitude_reward) );
@@ -496,32 +498,34 @@ Scalar attitude_reward = drone_dir.dot(camera_dir2) * 0.5;
 
   //str[i] = to_string(   quad_state_.qx[i]     );
   //idea giuseppe
-  if(quad_state_.p(QS::POSX) > xMax){
-    dist_reward = dist_reward *(1 + collision_penalty);
-    xMax =  quad_state_.p(QS::POSX);
-  }else{
-    dist_reward = 0;
-  }
+  // if(quad_state_.p(QS::POSX) > xMax){
+  //   dist_reward = dist_reward *(1 + collision_penalty);
+  //   xMax =  quad_state_.p(QS::POSX);
+  // }else{
+  //   dist_reward = 0;
+  // }
 
   //logger_.info( "angular velocit: " + str1 + " " + str2 + " " + str3);
  // logger_.info( "attitude : " + gg);
 
   //  change progress reward as survive reward
    Scalar total_reward =
-         survive_rew_ + attitude_reward * dist_reward;
+         survive_rew_ + dist_reward + attitude_reward + collision_penalty;
     //lin_vel_reward + collision_penalty + ang_vel_penalty + survive_rew_;
    //string str = to_string(   quad_state_.v.norm()   );
   string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty)
                   +  "  " +
     to_string(attitude_reward) +  "  " + to_string(total_reward);
-  //logger_.warn(str);
+  logger_.warn(str);
   //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
 
 
 
+  if(quad_state_.p(QS::POSX) > xMax)
+     xMax =  quad_state_.p(QS::POSX);
 
   if (xMax - 0.5 > quad_state_.p(QS::POSX)){
-    total_reward = -1;
+    total_reward = 0;
   }
 
 
@@ -588,9 +592,9 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
 
 //for this competitio, only evaluate x position
 if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 10){
-  reward = 10.0;
+  reward = 20.0;
   //Scalar collisionPercentage = (maxCollision - num_collision) / (maxCollision);
-  reward = reward;
+  reward = reward * time_percentage;
   std::cout << "reached target position!\n";
   return true;
 }
