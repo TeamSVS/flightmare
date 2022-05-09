@@ -231,10 +231,7 @@ void UnityBridge::setRenderOffset(const Ref<Vector<3>> render_offset) {
 }
 
 bool UnityBridge::setObjectCSV(const std::string& csv_file) {
-  if (!(file_exists(csv_file))) {
-    logger_.error("Configuration file %s does not exists.", csv_file);
-    return false;
-  }
+
   // logger_.info("Scene ID is set to %d.", scene_id);
   settings_.object_csv = csv_file;
   return true;
