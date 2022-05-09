@@ -506,7 +506,7 @@ Scalar attitude_reward = drone_dir.dot(camera_dir2) * 0.5;
 
   //  change progress reward as survive reward
    Scalar total_reward =
-        dist_reward + survive_rew_ + attitude_reward;
+         survive_rew_ + attitude_reward * dist_reward;
     //lin_vel_reward + collision_penalty + ang_vel_penalty + survive_rew_;
    //string str = to_string(   quad_state_.v.norm()   );
   string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty)
