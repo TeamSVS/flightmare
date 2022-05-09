@@ -450,7 +450,7 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
 
  //simulation time out
  if (cmd_.t >= max_t_ - sim_dt_) {
-   reward = -1000;
+   reward = -10;
    std::cout << "Timeout!\n";
    return true;
  }
@@ -465,14 +465,14 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
   bool z_valid = quad_state_.x(QS::POSZ) >= world_box_[4] + safty_threshold &&
                  quad_state_.x(QS::POSZ) <= world_box_[5] - safty_threshold;
  if (!x_valid || !y_valid || !z_valid) {
-    reward = -1000.0;
+    reward = -5.0;
     return true;
   }
 
 
 //for this competitio, only evaluate x position
 if (abs(goal_pos_[0] - quad_state_.p(QS::POSX)) < 10){
-  reward = 2000.0;
+  reward = 10.0;
   //Scalar collisionPercentage = (maxCollision - num_collision) / (maxCollision);
   //reward = reward;
   std::cout << "reached target position!\n";
