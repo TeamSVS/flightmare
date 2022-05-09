@@ -294,14 +294,6 @@ bool VisionEnv::simDynamicObstacles(const Scalar dt) {
   }
   return true;
 }
-//
-// std::vector<Scalar> Minus(std::vector<float> v1, std::vector<float> v2){
-//     std::vector<Scalar> v;
-//     for(int i = 0; i < v1.size(); i++){
-//         v[i] = v2[i] - v1[i];
-//     }
-//     return v;
-// }
 
 static double getDistance(Vector<3> v1, Vector<3> v2) {
   double len = 0;
@@ -511,6 +503,8 @@ Scalar VisionEnv::camAndXBasedReward(){
   }
   return total_reward;
 }
+
+//_________MAIN REWARD FUNCTION: THE ONE THAT CALLS THE OTHERS_________//
 bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   Scalar total_reward = 0;
   //total_reward = multiSummedComponentsReward(reward); //needs wall behind patch
