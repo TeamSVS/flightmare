@@ -525,7 +525,7 @@ Scalar attitude_reward = drone_dir.dot(camera_dir) * 0.5;
      xMax =  quad_state_.p(QS::POSX);
 
   if (xMax - 0.5 > quad_state_.p(QS::POSX)){
-    total_reward = 0;
+    total_reward = -1;
   }
 
 
