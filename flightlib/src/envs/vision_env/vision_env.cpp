@@ -491,7 +491,7 @@ Scalar VisionEnv::multiSummedComponentsReward(){
   Scalar max_possible_rew = survive_weight + attitude_weight + ang_vel_weight + time_weight + lin_vel_weight + distance_weight + collision_weight;
   Scalar min_possible_rew = - max_possible_rew;
   //normalize total reward from -1 to 1
-  total_reward = 2*(total_reward - min_possible_rew) / (max_possible_rew - min_possible_rew) -1
+  total_reward = 2*(total_reward - min_possible_rew) / (max_possible_rew - min_possible_rew) -1;
   return total_reward;
 }
 Scalar VisionEnv::camAndXBasedReward(){
