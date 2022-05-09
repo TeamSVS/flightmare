@@ -443,8 +443,19 @@ Scalar VisionEnv::computeCamOrientationReward(){
     // logger_.info( "attitude : " + gg);
   }  // OLD attitude penalty based on y and z
 }
+Scalar VisionEnv::wallBehindPatch(Scalar current_tot_reward){
+  if (quad_state_.p(QS::POSX) > xMax) {
+    xMax = quad_state_.p(QS::POSX);
+  }
+  if (xMax - 0.5 > quad_state_.p(QS::POSX)) {  // muro reale dietro
+    return -1;
+  }
+  return current_tot_reward;
+}
 //_____________END reward components calculation functions END_____________//
-Scalar VisionEnv::multiSummedComponentsReward(Ref<Vector<>> reward){
+
+//_____________COMPLETE REWARD FUNCTIONS_____________//
+Scalar VisionEnv::multiSummedComponentsReward(){
 // 0 to deactivate reward component
   Scalar collision_weight = 0; //for approaching or colliding with the obstacle
   Scalar distance_weight = 1; //for moving towards x
@@ -476,21 +487,16 @@ Scalar VisionEnv::multiSummedComponentsReward(Ref<Vector<>> reward){
                        collision_penalty +
                        ang_vel_penalty +
                        time_percentage;
-
   //debugging stuff
     string str = "  " + to_string(dist_reward) + "  " +
                to_string(collision_penalty) + "  " +
                to_string(attitude_reward) + "  " + to_string(total_reward);
   std::cout << "\t\t\t\t" + to_string(total_reward) << endl;
-  // return all reward components for debug purposes
-  reward << dist_reward, collision_penalty, ang_vel_penalty, survive_rew_,
-    total_reward;
+
   return total_reward;
 }
-
-bool VisionEnv::computeReward(Ref<Vector<>> reward) {
+Scalar VisionEnv::camAndXBasedReward(){
   Scalar total_reward = 0;
-  //total_reward = multiSummedComponentsReward(reward);
   Scalar attitude_reward = computeCamOrientationReward();
   Scalar dist_reward = computeXprogressReward();
   // idea giuseppe: muro dietro al drone. Se va indietro lo penalizzi
@@ -503,15 +509,15 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
       total_reward = 0;
     }
   }
+  return total_reward;
+}
+bool VisionEnv::computeReward(Ref<Vector<>> reward) {
+  Scalar total_reward = 0;
+  //total_reward = multiSummedComponentsReward(reward); //needs wall behind patch
+  //total_reward = wallBehindPatch(total_reward);
+  total_reward = camAndXBasedReward();
 
-  if (quad_state_.p(QS::POSX) > xMax) {
-    xMax = quad_state_.p(QS::POSX);
-  }
-  if (xMax - 0.5 > quad_state_.p(QS::POSX)) {  // muro reale dietro
-    total_reward = -1;
-  }
-
-
+  reward << total_reward;
   return true;
 }
 
