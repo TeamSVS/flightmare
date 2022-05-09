@@ -413,10 +413,12 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
       Eigen::Vector3d ori(0,0,0);
       Scalar radius = obstacles[i*4+3];
       Scalar obstacle_dis = getDistance(ori, ob_relative_pos);
+      obstacle_dis = (obstacle_dis > 0) && (obstacle_dis < max_detection_range_) ?
+                    obstacle_dis : max_detection_range_;
       Eigen::Vector3d obs_dir = ob_relative_pos / obstacle_dis;
-      Scalar theta = abs(obs_dir.dot(drone_dir));
-
-      Scalar alpha = radius * 180.0 / (obstacle_dis * 3.141592653589793);
+      Scalar dot_theta = abs(obs_dir.dot(drone_dir));
+      Scalar theta =
+      Scalar alpha = radius * 180 / (obstacle_dis * 3.141592653589793);
 
       if(theta < alpha){
           collision_penalty = (1 / 10 - 1 / obstacle_dis);
@@ -426,7 +428,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
       }
 
 
-    //  logger_.warn(  to_string(i) + " " +  to_string(collision_penalty) );
+      logger_.warn(  to_string(i) + " " +  to_string(obstacle_dis) );
   }
 
 
@@ -512,7 +514,7 @@ Scalar attitude_reward = drone_dir.dot(camera_dir2) * 0.5;
   string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty)
                   +  "  " +
     to_string(attitude_reward) +  "  " + to_string(total_reward);
-  logger_.warn(str);
+  //logger_.warn(str);
   //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
 
 
