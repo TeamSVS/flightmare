@@ -554,11 +554,6 @@ Scalar VisionEnv::multiSummedComponentsReward() {
   Scalar total_reward = dist_reward + survive_rew + attitude_reward +
                         lin_vel_reward + collision_penalty + ang_vel_penalty +
                         time_percentage;
-  // debugging stuff
-  string str = " " + to_string(dist_reward) + " " +
-               to_string(collision_penalty) + " " + to_string(attitude_reward) +
-               " " + to_string(total_reward);
-  std::cout << "\t\t\t\t" + to_string(total_reward) << endl;
 
 
   return total_reward;
@@ -596,12 +591,12 @@ Scalar VisionEnv::newReward() {
   Scalar ang_vel_penalty =
     angular_vel_coeff_ * quad_state_.w.norm() * ang_vel_weight;
   if (attitude_reward > 0.3 && dist_reward > 0) {
+    logger_.warn(to_string(dist_reward));
     if (attitude_reward > 0.9 && dist_reward > 0) {
       Scalar val = attitude_reward;
       val = (val - 0.9) * 10;
       attitude_reward *= attitude_weight;
-      logger_.info(to_string(dist_reward));
-      logger_.warn(to_string(attitude_reward));
+      logger_.info(to_string(attitude_reward));
       return dist_reward * val;
     } else
       return dist_reward * 0.3;
