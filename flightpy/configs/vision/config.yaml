@@ -47,10 +47,10 @@ simulation:
   seed: 1
   sim_dt: 0.02
   max_t: 20.0
-  num_envs: 1
+  num_envs: 5
   num_threads: 32
   heartbeat: yes
-  fakeQuadrotorScaleSize: 0.001
+  fakeQuadrotorScaleSize: 1
 
 quadrotor_dynamics:
   mass: 0.752
