@@ -349,7 +349,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
 Eigen::Matrix3d rot_mat = quad_state_.R();
 Eigen::Vector3d origin(1,0,0);
 Eigen::Vector3d camera_dir =  rot_mat * origin;
-Scalar attitude_reward = 0.5*tanh(2.2 * drone_dir.dot(camera_dir));
+Scalar attitude_reward = attitude_ori_coeff_ * tanh(2.2 * drone_dir.dot(camera_dir));
 
 
  // get N most closest obstacles as the observation
@@ -381,6 +381,7 @@ Scalar attitude_reward = 0.5*tanh(2.2 * drone_dir.dot(camera_dir));
           //   collision_penalty = -1;
           collision_penalty -= 1/(0.1 * pow(obstacle_dis, 8) + 1);
       }
+      collision_penalty *= collision_coeff_;
 
     //  if(theta != theta || alpha != alpha)
       //logger_.warn(  to_string(i) + " " +  to_string(theta) + " " + to_string(alpha) );
@@ -399,7 +400,7 @@ Scalar attitude_reward = 0.5*tanh(2.2 * drone_dir.dot(camera_dir));
 
   //  change progress reward as survive reward
    Scalar total_reward =
-         survive_rew_ + dist_reward;
+         survive_rew_ + dist_reward + collision_penalty + attitude_reward;
   string str =to_string(dist_reward) + "  " + to_string(collision_penalty)
                   +  "  " +
     to_string(attitude_reward) +  "  " + to_string(total_reward);
@@ -408,12 +409,12 @@ Scalar attitude_reward = 0.5*tanh(2.2 * drone_dir.dot(camera_dir));
 
 
   //
-  // if(quad_state_.p(QS::POSX) > xMax)
-  //    xMax =  quad_state_.p(QS::POSX);
-  //
-  // if (xMax - 0.5 > quad_state_.p(QS::POSX)){
-  //   total_reward = 0;
-  // }
+  if(quad_state_.p(QS::POSX) > xMax)
+     xMax =  quad_state_.p(QS::POSX);
+
+  if (xMax - 0.5 > quad_state_.p(QS::POSX)){
+    total_reward = -0.5;
+  }
 
 
 
@@ -429,14 +430,14 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
 
   //collsion
   if (is_collision_) {
-      reward = 0; //-1.0;
+      reward = -1.0; //-1.0;
       std::cout << "Collision!\n";
       return true;
   }
 
  //simulation time out
  if (cmd_.t >= max_t_ - sim_dt_) {
-   reward =  0; //-1;
+   reward =  -10.0; //-1;
    std::cout << "Timeout!\n";
    return true;
  }
@@ -451,7 +452,7 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
   bool z_valid = quad_state_.x(QS::POSZ) >= world_box_[4] + safty_threshold &&
                  quad_state_.x(QS::POSZ) <= world_box_[5] - safty_threshold;
  if (!x_valid || !y_valid || !z_valid) {
-    reward = 0;//-1.0;
+    reward = -1.0;//-1.0;
     return true;
   }
 
