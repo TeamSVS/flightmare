@@ -492,7 +492,7 @@ bool VisionEnv::multiSummedComponentsReward(Ref<Vector<>> reward){
   //Scalar min_possible_rew = - max_possible_rew;
   //normalize total reward from -1 to 1
   //total_reward = 2*(total_reward - min_possible_rew) / (max_possible_rew - min_possible_rew) -1;
-  reward << 0,0,0,0,total_reward;
+  reward << total_reward;
   return true;
 }
 bool VisionEnv::camAndXBasedReward(Ref<Vector<>> reward){
@@ -509,7 +509,7 @@ bool VisionEnv::camAndXBasedReward(Ref<Vector<>> reward){
       total_reward = 0;
     }
   }
-  reward << total_reward, total_reward;
+  reward << 0,0,0,0,total_reward;
   return true;
 }
 bool VisionEnv::newReward(Ref<Vector<>> reward){
@@ -522,7 +522,7 @@ bool VisionEnv::newReward(Ref<Vector<>> reward){
   attitude_reward = (attitude_reward + 1) / 2 -1; //normalize between [-1,0]
   attitude_reward *= attitude_weight;
   Scalar total_reward = dist_reward + attitude_reward;
-  reward << dist_reward, attitude_reward, total_reward;
+  reward << 0,0,0,0, total_reward;
   return true;
 }
 //_________MAIN REWARD FUNCTION: THE ONE THAT CALLS THE OTHERS_________//
