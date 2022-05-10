@@ -103,7 +103,7 @@ bool VisionEnv::reset(Ref<Vector<>> obs) {
 
   max_dist_ = goal_pos_ - quad_state_.p;
   num_collision = 0;
-  xMax = 0;
+  xMax = quad_state_.p(QS::POSX);
 
 //  std::cout << "Reset!\n";
 //  std::cout << "Starting Drone X:" << quad_state_.p(QS::POSX) << "\n";
@@ -495,6 +495,7 @@ Scalar attitude_reward = drone_dir.dot(camera_dir) * 0.5;
   //str[i] = to_string(   quad_state_.qx[i]     );
   //idea giuseppe
    if(quad_state_.p(QS::POSX) > xMax){
+       dist_reward=quad_state_.p(QS::POSX) - xMax;
      dist_reward = dist_reward *(1 + collision_penalty);
      xMax =  quad_state_.p(QS::POSX);
    }else{
