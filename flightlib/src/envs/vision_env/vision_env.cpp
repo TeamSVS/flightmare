@@ -16,10 +16,6 @@ std::string("/flightpy/configs/vision/config.yaml"),
 
 VisionEnv::VisionEnv(const std::string &cfg_path, const int env_id)
 : EnvBase() {
-// check if configuration file exist
-if (!(file_exists(cfg_path))) {
-logger_.error("Configuration file %s does not exists.", cfg_path);
-}
 // load configuration file
 cfg_ = YAML::LoadFile(cfg_path);
 //
@@ -664,14 +660,14 @@ Scalar dist_reward = computeGoalApproachReward() * distance_weight;
 
 // - reward based on the deviation between camera dir and either goal or drone dir
 Scalar attitude_reward = computeCamOrientationReward(); //returns dot product between[-1,1]
-attitude_reward = (attitude_reward + 1) / 2 -0.5; //normalize between [-0.7,0.3]
+attitude_reward = (attitude_reward + 1) / 2 -0.8; //normalize between [-0.7,0.3]
 
 if(attitude_reward > 0.0 && dist_reward > 0.0){
 Scalar ang_vel_penalty = angular_vel_coeff_ * quad_state_.w.norm() * ang_vel_weight;
 attitude_reward *= attitude_weight;
-return dist_reward + attitude_reward - ang_vel_penalty;
+return dist_reward + attitude_reward - 0;
 }else{
-return 0;
+return -0.1;
 }
 
 
@@ -930,11 +926,6 @@ scene_id_ = cfg["unity"]["scene_id"].as<SceneID>();
  //
 std::string scene_file =
 getenv("FLIGHTMARE_PATH") + std::string("/flightpy/configs/scene.yaml");
-// check if configuration file exist
-if (!(file_exists(scene_file))) {
-logger_.error("Unity scene configuration file %s does not exists.",
-scene_file);
-}
 // load configuration file
 YAML::Node scene_cfg_node = YAML::LoadFile(scene_file);
 std::string scene_idx = "scene_" + std::to_string(scene_id_);
@@ -950,11 +941,6 @@ return true;
 
 
 bool VisionEnv::configDynamicObjects(const std::string &yaml_file) {
-//
-if (!(file_exists(yaml_file))) {
-logger_.error("Configuration file %s does not exists.", yaml_file);
-return false;
-}
 YAML::Node cfg_node = YAML::LoadFile(yaml_file);
 
 
@@ -996,10 +982,6 @@ obj->setScale(Vector<3>(scalevec.data()));
  std::string csv_name = cfg_node[object_id]["csvtraj"].as<std::string>();
 std::string csv_file = obstacle_cfg_path_ + std::string("/csvtrajs/") +
 csv_name + std::string(".csv");
-if (!(file_exists(csv_file))) {
-logger_.error("Configuration file %s does not exists.", csv_file);
-return false;
-}
 obj->loadTrajectory(csv_file);
 
 
@@ -1013,11 +995,7 @@ return true;
 
 
 bool VisionEnv::configStaticObjects(const std::string &csv_file) {
-//
-if (!(file_exists(csv_file))) {
-logger_.error("Configuration file %s does not exists.", csv_file);
-return false;
-}
+
 std::ifstream infile(csv_file);
 int i = 0;
 for (auto &row : CSVRange(infile)) {
