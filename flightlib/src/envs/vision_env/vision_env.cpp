@@ -593,20 +593,16 @@ Scalar VisionEnv::newReward() {
   if (attitude_reward > 0.3 && dist_reward > 0) {
     if (attitude_reward > 0.9 && dist_reward > 0) {
       Scalar val = attitude_reward;
-      val = (val - 0.9) * 10;
+      val = abs((val - 0.9)) * 10;
       attitude_reward *= attitude_weight;
-      logger_.info("A" + to_string(dist_reward * val));
-      return dist_reward * val;
+      logger_.info("A" + to_string(dist_reward * val+ ang_vel_penalty));
+      return dist_reward * val+ ang_vel_penalty;
     } else {
-      logger_.warn("B" + to_string(dist_reward * 0.3 + ang_vel_penalty));
-      return dist_reward * 0.3 + ang_vel_penalty;
+      logger_.warn("B" + to_string(dist_reward * 0.3 ));
+      return dist_reward * 0.3;
     }
   } else {
-    if (ang_vel_penalty > -0.0019) {
-      ang_vel_penalty = 0;
-    }
-    logger_.error("C" + to_string(ang_vel_penalty));
-    return ang_vel_penalty;
+    return 0;
   }
 }
 //_________MAIN REWARD FUNCTION: THE ONE THAT CALLS THE OTHERS_________//
