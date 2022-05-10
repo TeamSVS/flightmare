@@ -492,7 +492,7 @@ bool VisionEnv::multiSummedComponentsReward(Ref<Vector<>> reward){
   //Scalar min_possible_rew = - max_possible_rew;
   //normalize total reward from -1 to 1
   //total_reward = 2*(total_reward - min_possible_rew) / (max_possible_rew - min_possible_rew) -1;
-  reward << dist_reward, survive_rew, attitude_reward, lin_vel_reward, collision_penalty, ang_vel_penalty, time_percentage, total_reward;
+  reward << 0,0,0,0,total_reward;
   return true;
 }
 bool VisionEnv::camAndXBasedReward(Ref<Vector<>> reward){
