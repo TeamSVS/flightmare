@@ -595,14 +595,16 @@ Scalar VisionEnv::newReward() {
   attitude_reward = (attitude_reward);  // normalize between [-0.7,0.3]
   Scalar ang_vel_penalty =
     angular_vel_coeff_ * quad_state_.w.norm() * ang_vel_weight;
-
-  if (attitude_reward > 0.9 && dist_reward > 0) {
-    Scalar val = attitude_reward;
-    val = (val - 0.9) * 10;
-    attitude_reward *= attitude_weight;
-    logger_.info(to_string(dist_reward));
-    logger_.warn(to_string(attitude_reward));
-    return dist_reward * val;
+  if (attitude_reward > 0.3 && dist_reward > 0) {
+    if (attitude_reward > 0.9 && dist_reward > 0) {
+      Scalar val = attitude_reward;
+      val = (val - 0.9) * 10;
+      attitude_reward *= attitude_weight;
+      logger_.info(to_string(dist_reward));
+      logger_.warn(to_string(attitude_reward));
+      return dist_reward * val;
+    } else
+      return dist_reward * 0.3;
   } else {
     if (ang_vel_penalty > -0.0019) {
       ang_vel_penalty = 0;
