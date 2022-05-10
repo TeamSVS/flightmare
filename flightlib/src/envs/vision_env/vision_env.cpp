@@ -477,7 +477,8 @@ Eigen::Vector3d camera_dir =  rot_mat * origin;
 //Scalar attitude_reward = 0;
 //drone_dir[0] *= -1.0;
 //drone_dir[1] *= -1.0;
-Scalar attitude_reward = drone_dir.dot(camera_dir) * 0.5;
+Scalar attitude_reward = drone_dir.dot(camera_dir) ;
+attitude_reward = (attitude_reward + 1) / 2 ; //normalize between [0,1]
 //Scalar attitude_reward = (drone_dir.dot(camera_dir) + 1) / 2 -1;
 //Scalar attitude_reward= - (1- drone_dir.dot(camera_dir));
 //logger_.info( to_string(attitude_reward) );
@@ -507,7 +508,7 @@ Scalar attitude_reward = drone_dir.dot(camera_dir) * 0.5;
 
   //  change progress reward as survive reward
    Scalar total_reward =
-         dist_reward * attitude_reward ;
+         dist_reward * sqrt(attitude_reward) ;
     //lin_vel_reward + collision_penalty + ang_vel_penalty + survive_rew_;
    //string str = to_string(   quad_state_.v.norm()   );
   //string str = "  " + to_string(dist_reward) + "  " + to_string(collision_penalty)
