@@ -591,20 +591,18 @@ Scalar VisionEnv::newReward() {
   Scalar ang_vel_penalty =
     angular_vel_coeff_ * quad_state_.w.norm() * ang_vel_weight;
   if (attitude_reward > 0.3 && dist_reward > 0) {
-    logger_.warn(to_string(dist_reward));
     if (attitude_reward > 0.9 && dist_reward > 0) {
       Scalar val = attitude_reward;
       val = (val - 0.9) * 10;
       attitude_reward *= attitude_weight;
-      logger_.info(to_string(attitude_reward));
       return dist_reward * val;
     } else
-      return dist_reward * 0.3;
+      return dist_reward * 0.3 + ang_vel_penalty;
   } else {
     if (ang_vel_penalty > -0.0019) {
       ang_vel_penalty = 0;
     }
-    logger_.error(to_string(ang_vel_penalty));
+    logger_.error("C" + to_string(attitude_reward));
     return ang_vel_penalty;
   }
 }
@@ -615,7 +613,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   // total_reward = wallBehindPatch(total_reward, 0.5);
   // total_reward = camAndXBasedReward();
   total_reward = newReward();
-  reward << total_reward;
+  reward << 0, 0, 0, 0, total_reward;
   return true;
 }
 
