@@ -367,6 +367,8 @@ Eigen::Vector3d camera_dir =  rot_mat * origin;
 //Scalar attitude_reward = attitude_ori_coeff_ * tanh(2.2 * drone_dir.dot(camera_dir));
 Scalar attitude_reward = 0.6 * log(velX + 1) * tanh(1.1 * drone_dir.dot(camera_dir));
 
+logger_.warn( to_string( drone_dir.dot(camera_dir) ));
+
 
  // get N most closest obstacles as the observation
  Vector<visionenv::kNObstacles * visionenv::kNObstaclesState> obstacles;
@@ -422,8 +424,9 @@ Scalar attitude_reward = 0.6 * log(velX + 1) * tanh(1.1 * drone_dir.dot(camera_d
          dist_reward + collision_penalty + attitude_reward + Wall_behind_penalty;
   string str =to_string(dist_reward) + "  " + to_string(collision_penalty)
                   +  "  " +
-    to_string(attitude_reward) +  "  " + to_string(Wall_behind_penalty);
-  logger_.warn(str);
+    to_string(attitude_reward) +  "  " + to_string(Wall_behind_penalty)
+    +  "  " + to_string(total_reward) ;
+//  logger_.warn(str);
   //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
 
 
