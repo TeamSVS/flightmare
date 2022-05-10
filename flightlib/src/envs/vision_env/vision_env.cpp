@@ -595,11 +595,12 @@ Scalar VisionEnv::newReward() {
       Scalar val = attitude_reward;
       val = (val - 0.9) * 10;
       attitude_reward *= attitude_weight;
-      logger_.warn("A" + to_string(dist_reward * val));
+      logger_.info("A" + to_string(dist_reward * val));
       return dist_reward * val;
-    } else
+    } else {
       logger_.warn("B" + to_string(dist_reward * 0.3 + ang_vel_penalty));
-    return dist_reward * 0.3 + ang_vel_penalty;
+      return dist_reward * 0.3 + ang_vel_penalty;
+    }
   } else {
     if (ang_vel_penalty > -0.0019) {
       ang_vel_penalty = 0;
