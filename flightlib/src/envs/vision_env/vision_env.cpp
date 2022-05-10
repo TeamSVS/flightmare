@@ -523,7 +523,7 @@ Scalar attitude_reward = drone_dir.dot(camera_dir) ;
      xMax =  quad_state_.p(QS::POSX);
 
   if (xMax - 0.5 > quad_state_.p(QS::POSX)){
-    total_reward = -1;
+    total_reward = -5;
   }
 
 
@@ -540,7 +540,7 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
 
   //collsion
   if (is_collision_) {
-      reward = -1.0;
+      reward = -5.0;
       std::cout << "Collision!\n";
       return true;
   }
