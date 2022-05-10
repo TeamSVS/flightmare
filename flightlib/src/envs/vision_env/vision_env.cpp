@@ -448,10 +448,10 @@ Scalar VisionEnv::wallBehindPatch(Scalar current_tot_reward, Scalar margin){
 //_____________END reward components calculation functions END_____________//
 
 //_____________COMPLETE REWARD FUNCTIONS_____________//
-Scalar VisionEnv::multiSummedComponentsReward(){
+bool VisionEnv::multiSummedComponentsReward(Ref<Vector<>> reward){
 // 0 to deactivate reward component
   Scalar collision_weight = 0; //for approaching or colliding with the obstacle
-  Scalar distance_weight = 2; //for moving towards x
+  Scalar distance_weight = 1; //for moving towards x
   Scalar lin_vel_weight = 0; //for tracking a constant linear velocity
   Scalar time_weight = 0; //for having time left
   Scalar ang_vel_weight = 0; //for avoiding oscillations
@@ -488,13 +488,14 @@ Scalar VisionEnv::multiSummedComponentsReward(){
                to_string(attitude_reward) + "  " + to_string(total_reward);
   std::cout << "\t\t\t\t" + to_string(total_reward) << endl;
 
-  Scalar max_possible_rew = survive_weight + attitude_weight + ang_vel_weight + time_weight + lin_vel_weight + distance_weight + collision_weight;
-  Scalar min_possible_rew = - max_possible_rew;
+  //Scalar max_possible_rew = survive_weight + attitude_weight + ang_vel_weight + time_weight + lin_vel_weight + distance_weight + collision_weight;
+  //Scalar min_possible_rew = - max_possible_rew;
   //normalize total reward from -1 to 1
-  total_reward = 2*(total_reward - min_possible_rew) / (max_possible_rew - min_possible_rew) -1;
-  return total_reward;
+  //total_reward = 2*(total_reward - min_possible_rew) / (max_possible_rew - min_possible_rew) -1;
+  reward << dist_reward, survive_rew, attitude_reward, lin_vel_reward, collision_penalty, ang_vel_penalty, time_percentage, total_reward;
+  return true;
 }
-Scalar VisionEnv::camAndXBasedReward(){
+bool VisionEnv::camAndXBasedReward(Ref<Vector<>> reward){
   Scalar total_reward = 0;
   Scalar attitude_reward = computeCamOrientationReward();
   Scalar dist_reward = computeXprogressReward();
@@ -508,29 +509,25 @@ Scalar VisionEnv::camAndXBasedReward(){
       total_reward = 0;
     }
   }
-  return total_reward;
+  reward << total_reward, total_reward;
+  return true;
 }
-Scalar VisionEnv::newReward(){
-  Scalar distance_weight = 2; //for moving towards x
+bool VisionEnv::newReward(Ref<Vector<>> reward){
+  Scalar distance_weight = 1; //for moving towards x
   Scalar attitude_weight = 1; //for orienting the camera in the target direction
-
   // - go towards goal reward
-  Scalar dist_reward = computeGoalApproachReward() * distance_weight;
+  Scalar dist_reward = computeGoalApproachReward() * distance_weight; //returns
   // - reward based on the deviation between camera dir and either goal or drone dir
   Scalar attitude_reward = computeCamOrientationReward(); //returns dot product between[-1,1]
   attitude_reward = (attitude_reward + 1) / 2 -1; //normalize between [-1,0]
   attitude_reward *= attitude_weight;
-  return dist_reward + attitude_reward;
+  Scalar total_reward = dist_reward + attitude_reward;
+  reward << dist_reward, attitude_reward, total_reward;
+  return true;
 }
 //_________MAIN REWARD FUNCTION: THE ONE THAT CALLS THE OTHERS_________//
 bool VisionEnv::computeReward(Ref<Vector<>> reward) {
-  Scalar total_reward = 0;
-  total_reward = multiSummedComponentsReward(); //needs wall behind patch
-  //total_reward = wallBehindPatch(total_reward, 0.5);
-  //total_reward = camAndXBasedReward();
-  //total_reward = newReward();
-  reward << total_reward;
-  return true;
+  return newReward(reward);
 }
 
 bool VisionEnv::isTerminalState(Scalar &reward) {

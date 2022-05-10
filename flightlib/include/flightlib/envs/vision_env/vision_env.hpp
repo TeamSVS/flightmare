@@ -121,9 +121,9 @@ class VisionEnv final : public EnvBase {
   Scalar computeGoalApproachReward();
   Scalar computeTimePenalty(Scalar time_weight);
   Scalar computeCamOrientationReward();
-  Scalar multiSummedComponentsReward();
-  Scalar newReward();
-  Scalar camAndXBasedReward();
+  bool multiSummedComponentsReward(Ref<Vector<>> reward);
+  bool newReward(Ref<Vector<>> reward);
+  bool camAndXBasedReward(Ref<Vector<>> reward);
   Scalar wallBehindPatch(Scalar current_tot_reward, Scalar margin);
   //others
   bool computeReward(Ref<Vector<>> reward);
