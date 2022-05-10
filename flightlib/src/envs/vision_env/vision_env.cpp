@@ -397,7 +397,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
  // get N most closest obstacles as the observation
  Vector<visionenv::kNObstacles * visionenv::kNObstaclesState> obstacles;
  getObstacleState(obstacles);
-
+    Scalar module = getDistance(pos_new, pos_old)
  // - compute collision penalty idea di giuseppe 2
   Scalar collision_penalty = 0.0;
   Scalar total_detectable_obstacles = 0;
@@ -417,7 +417,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
       theta = theta * 180 / abs(obstacle_dis * 3.141592653589793);
       Scalar alpha = radius * 180 / abs(obstacle_dis * 3.141592653589793);
 
-      if(theta < alpha && theta == theta && alpha == alpha){ //non modificare pls
+      if(theta < alpha && theta == theta && alpha == alpha && module>=obstacle_dis){ //non modificare pls
            collision_penalty = (1 / 10 - 1 / obstacle_dis);
            if(collision_penalty < -1 ){
              collision_penalty = -1;
