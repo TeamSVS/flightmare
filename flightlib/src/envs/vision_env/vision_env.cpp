@@ -334,8 +334,8 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   //logger_.error( to_string(quad_state_.p.norm()) );
   //logger_.error( to_string(quad_state_.p[0]) + " " + to_string(quad_state_.p[1]) + " " +  to_string(quad_state_.p[2]) );
 
-  Scalar dist_reward =  0.3 * pow(velX, 0.25) * (1.0 - log(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
-
+  //Scalar dist_reward =  0.3 * pow(velX, 0.25) * (1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
+  Scalar dist_reward = sqrt(velX + 1) * (1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
    Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
 
   // - angular velocity penalty, to avoid oscillations
@@ -366,9 +366,9 @@ Eigen::Matrix3d rot_mat = quad_state_.R();
 Eigen::Vector3d origin(1,0,0);
 Eigen::Vector3d camera_dir =  rot_mat * origin;
 //Scalar attitude_reward = attitude_ori_coeff_ * tanh(2.2 * drone_dir.dot(camera_dir));
-//Scalar attitude_reward = 0.6 * log(velX + 1) * tanh(1.1 * drone_dir.dot(camera_dir));
+Scalar attitude_reward = 0.6 * log(velX + 1) * tanh(1.1 * drone_dir.dot(camera_dir));
 //Scalar attitude_reward = 0.5 * sqrt(velX * 0.5 + 1) * tanh(1.1 * drone_dir.dot(camera_dir));
-Scalar attitude_reward = drone_dir.dot(camera_dir);
+//Scalar attitude_reward = drone_dir.dot(camera_dir);
 //if(velocityX < 0 ) attitude_reward = -attitude_reward;
 //logger_.error( to_string( attitude_reward ));
 //logger_.warn( to_string( drone_dir.dot(camera_dir) ));
@@ -439,8 +439,8 @@ Scalar attitude_reward = drone_dir.dot(camera_dir);
   //logger_.info( "angular velocit: " + str1 + " " + str2 + " " + str3);
  // logger_.info( "attitude : " + gg);
 
- Scalar Wall_behind_penalty = velocityX > -0.01 ? survive_rew_ : velocityX / 15;
- Wall_behind_penalty = 0;
+ Scalar Wall_behind_penalty = velocityX > 0 ? survive_rew_ : velocityX / 30;
+ //Wall_behind_penalty = 0;
 
   //  change progress reward as survive reward
    Scalar total_reward =
@@ -454,13 +454,13 @@ Scalar attitude_reward = drone_dir.dot(camera_dir);
   //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
 
 
-
-  if(quad_state_.p(QS::POSX) > xMax)
-     xMax =  quad_state_.p(QS::POSX);
-
-  if (xMax - 0.5 > quad_state_.p(QS::POSX)){
-    total_reward = -1;
-  }
+  //
+  // if(quad_state_.p(QS::POSX) > xMax)
+  //    xMax =  quad_state_.p(QS::POSX);
+  //
+  // if (xMax - 0.5 > quad_state_.p(QS::POSX)){
+  //   total_reward = -1;
+  // }
 
 
 
