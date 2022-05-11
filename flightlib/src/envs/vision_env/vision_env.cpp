@@ -327,14 +327,14 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   const Scalar velocityY =quad_state_.x(QS::VELY);
   const Scalar velocityZ =quad_state_.x(QS::VELZ);
 
-  const Scalar velX = abs(velocityX);
+  const Scalar velX = velocityX > 0 ? abs(velocityX) : 0;
 
 //  logger_.error( to_string(velocityX) + " " + to_string(velocityY) + " " +  to_string(velocityZ) );
   //logger_.error( to_string(positionX) + " " + to_string(positionY) + " " +  to_string(positionZ) );
   //logger_.error( to_string(quad_state_.p.norm()) );
   //logger_.error( to_string(quad_state_.p[0]) + " " + to_string(quad_state_.p[1]) + " " +  to_string(quad_state_.p[2]) );
 
-    Scalar dist_reward = sqrt(velX + 1) * (1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
+    Scalar dist_reward =  0.3 * pow(velX, 0.25) * (1.0 - log(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
 
    Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
 
@@ -369,7 +369,7 @@ Eigen::Vector3d camera_dir =  rot_mat * origin;
 //Scalar attitude_reward = 0.6 * log(velX + 1) * tanh(1.1 * drone_dir.dot(camera_dir));
 Scalar attitude_reward = 0.5 * sqrt(velX * 0.5 + 1) * tanh(1.1 * drone_dir.dot(camera_dir));
 
-logger_.error( to_string( attitude_reward ));
+//logger_.error( to_string( attitude_reward ));
 //logger_.warn( to_string( drone_dir.dot(camera_dir) ));
 
 
@@ -423,6 +423,7 @@ logger_.error( to_string( attitude_reward ));
       //collision_penalty *= collision_coeff_;
   }
   collision_penalty = max_collision_penalty;
+  //collision_penalty = 0;
   //logger_.error(  to_string(collision_penalty)  );
 //  if(theta != theta || alpha != alpha)
 
@@ -437,11 +438,11 @@ logger_.error( to_string( attitude_reward ));
   //logger_.info( "angular velocit: " + str1 + " " + str2 + " " + str3);
  // logger_.info( "attitude : " + gg);
 
- Scalar Wall_behind_penalty = velocityX > -0.01 ? survive_rew_ : velocityX / 5;
+ Scalar Wall_behind_penalty = velocityX > -0.01 ? survive_rew_ : velocityX / 15;
 
   //  change progress reward as survive reward
    Scalar total_reward =
-         dist_reward + collision_penalty + attitude_reward/4 + Wall_behind_penalty;
+         dist_reward + attitude_reward + collision_penalty  + Wall_behind_penalty;
 
   string str =to_string(dist_reward) + "  " + to_string(collision_penalty)
                   +  "  " +
