@@ -342,7 +342,7 @@ class FlightEnvVec(VecEnv, ABC):
 
         for i in range(self.num_envs):
             self.rewards[i].append(self._reward_components[i, -1])
-            print(self._reward_components[i, -1])
+            #print(self._reward_components[i, -1])
             for j in range(self.rew_dim - 1):
                 self.sum_reward_components[i, j] += self._reward_components[i, j]
             if self._done[i]:

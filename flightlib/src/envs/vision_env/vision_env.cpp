@@ -329,7 +329,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
 
   const Scalar velX = abs(velocityX);
 
-  logger_.error( to_string(velocityX) + " " + to_string(velocityY) + " " +  to_string(velocityZ) );
+//  logger_.error( to_string(velocityX) + " " + to_string(velocityY) + " " +  to_string(velocityZ) );
   //logger_.error( to_string(positionX) + " " + to_string(positionY) + " " +  to_string(positionZ) );
   //logger_.error( to_string(quad_state_.p.norm()) );
   //logger_.error( to_string(quad_state_.p[0]) + " " + to_string(quad_state_.p[1]) + " " +  to_string(quad_state_.p[2]) );
@@ -408,16 +408,19 @@ Scalar attitude_reward = 0.5 * sqrt(velX * 0.5 + 1) * tanh(1.1 * drone_dir.dot(c
           Eigen::Vector3d linear_acceleration = quad_state_.a;
           Scalar acc_module = linear_acceleration.dot(obs_dir);
           Scalar vel_module = velocity_vec.dot(obs_dir);
-          hard_range = vel_module * vel_module / (2 * acc_module);
+          hard_range = acc_module > 0 ? vel_module * vel_module / (2 * acc_module) : 0;
 
-          collision_penalty -= 1 /(  pow( (pow(1.2*hard_range, 2.6) + soft_range), -2.4)
-                                        * pow(obstacle_dis, 6.5) + 1);
+          collision_penalty -= 1 /(  abs(pow( (pow(1.2*hard_range, 2.6) + soft_range), -2.4)
+                                        * pow(obstacle_dis, 6.5)) + 1);
 
+
+          // logger_.error(  to_string(i) + " " +  to_string(  pow(1.2*hard_range, 2.6))
+          //   + " " +  to_string( hard_range*1.2  )      );
       }
       //collision_penalty *= collision_coeff_;
 
     //  if(theta != theta || alpha != alpha)
-      //logger_.warn(  to_string(i) + " " +  to_string(theta) + " " + to_string(alpha) );
+
   }
 
   //idea giuseppe
@@ -436,11 +439,12 @@ Scalar attitude_reward = 0.5 * sqrt(velX * 0.5 + 1) * tanh(1.1 * drone_dir.dot(c
   //  change progress reward as survive reward
    Scalar total_reward =
          dist_reward + collision_penalty + attitude_reward + Wall_behind_penalty;
+
   string str =to_string(dist_reward) + "  " + to_string(collision_penalty)
                   +  "  " +
     to_string(attitude_reward) +  "  " + to_string(Wall_behind_penalty)
     +  "  " + to_string(total_reward) ;
-//  logger_.warn(str);
+  logger_.warn(str);
   //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
 
 
