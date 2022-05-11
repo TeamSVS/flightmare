@@ -373,7 +373,7 @@ Scalar VisionEnv::computeCollisionApproachPenalty() {
         : max_detection_range_;
 
 
-    const Scalar dist_margin = 0.5;  // 0.5
+    const Scalar dist_margin = 1;  // 0.5
     if (relative_pos_norm_[sort_idx] <=
         obstacle_radius_[sort_idx] + dist_margin) {
       // compute distance penalty
@@ -389,7 +389,8 @@ Scalar VisionEnv::computeCollisionApproachPenalty() {
                          (total_detectable_obstacles + 1);
   else
     collision_penalty = 0;
-  // logger_.info( to_string( collision_penalty ));
+
+  logger_.info("AAA" + to_string(collision_penalty));
 
 
   return collision_penalty;
@@ -578,85 +579,26 @@ Scalar VisionEnv::camAndXBasedReward() {
 Scalar VisionEnv::newReward() {
   Scalar distance_weight = 1;  // for moving towards x
   Scalar attitude_weight =
-    1;  // for orienting the camera in the target direction
+    2;  // for orienting the camera in the target direction
   Scalar ang_vel_weight = 1;
   // - go towards goal reward
   Scalar dist_reward = computeGoalApproachReward() * distance_weight;
 
-  // - reward based on the deviation between camera dir and either goal or drone
-  // dir
-  const Scalar velocityX = quad_state_.x(QS::VELX);
-  const Scalar velX = abs(velocityX);
 
-  Eigen::Vector3d pos_new(quad_state_.p(QS::POSX), quad_state_.p(QS::POSY),
-                          quad_state_.p(QS::POSZ));
-  Eigen::Vector3d pos_old(quad_old_state_.p(QS::POSX),
-                          quad_old_state_.p(QS::POSY),
-                          quad_old_state_.p(QS::POSZ));
-  Eigen::Vector3d target_dir;
-  Eigen::Vector3d WorldX(1, 0, 0);  // goal direction
-  target_dir = (pos_new - pos_old) / getDistance(pos_new, pos_old);
+  Scalar sphere_collision = computeCollisionApproachPenalty();
 
-
-  Vector<visionenv::kNObstacles * visionenv::kNObstaclesState> obstacles;
-  getObstacleState(obstacles);
-
-  Scalar collision_penalty = 0.0;
-  // Scalar total_detectable_obstacles = 0;
-  // size_t idx = 0;
-  // logger_.warn(  to_string(obstacles.size()) );
-  for (int i = 0; i < obstacles.size() / 4; i++) {
-    // per single obstacle
-    Eigen::Vector3d ob_relative_pos(obstacles[i * 4 + 0], obstacles[i * 4 + 1],
-                                    obstacles[i * 4 + 2]);
-    Eigen::Vector3d ori(0, 0, 0);
-    Scalar radius = obstacles[i * 4 + 3];
-    radius += 0.2;
-    Scalar obstacle_dis = getDistance(ori, ob_relative_pos);
-    obstacle_dis = (obstacle_dis > 0) && (obstacle_dis < max_detection_range_)
-                     ? obstacle_dis
-                     : max_detection_range_;
-    Eigen::Vector3d obs_dir = ob_relative_pos / obstacle_dis;
-    Scalar dot_theta = abs(obs_dir.dot(target_dir));
-    Scalar theta = acos(dot_theta);  // the magnitude of these 2 dirs are one.
-    theta = theta * 180 / abs(obstacle_dis * 3.141592653589793);
-
-
-    Scalar alpha = radius * 180 / abs(obstacle_dis * 3.141592653589793);
-    if (theta < alpha && theta == theta &&
-        alpha == alpha) {  // non modificare pls
-      // collision_penalty = (1 / 10 - 1 / obstacle_dis);
-      // if(collision0_penalty < -1 ){
-      //   collision_penalty = -1;
-      // collision_penalty -= 1/(0.1 * pow(obstacle_dis, 8) + 1);
-      collision_penalty -= 1 / (1 / velX * pow(obstacle_dis, 5) + 1);
-    }
-    // collision_penalty *= collision_coeff_;
-    //   if(theta != theta || alpha != alpha)
-    // logger_.warn(  to_string(i) + " " +  to_string(theta) + " " +
-    // to_string(alpha) );
-  }
-  // - compute collision penalty idea di giuseppe 2
-  if (collision_penalty > -0.05) {
-    collision_penalty = 0;
-  }
   Scalar attitude_reward =
     computeCamOrientationReward();      // returns dot product between[-1,1]
   attitude_reward = (attitude_reward);  // normalize between [-0.7,0.3]
   Scalar ang_vel_penalty =
     angular_vel_coeff_ * quad_state_.w.norm() * ang_vel_weight;
-  if (attitude_reward > 0.3 && dist_reward > 0) {
-    if (attitude_reward > 0.9 && dist_reward > 0) {
-      Scalar val = attitude_reward;
-      val = abs((val - 0.9)) * 10;
-      attitude_reward *= attitude_weight;
-      logger_.info("A" + to_string(dist_reward * val + ang_vel_penalty +
-                                   collision_penalty));
-      return dist_reward * val + ang_vel_penalty + collision_penalty;
-    } else {
-      logger_.warn("B" + to_string(dist_reward * 0.3 + collision_penalty));
-      return dist_reward * 0.3 + collision_penalty;
-    }
+
+  if (attitude_reward > 0.8 && dist_reward > 0) {
+    Scalar val = attitude_reward;
+    val = abs((val - 0.8)) * 5;
+    attitude_reward *= attitude_weight;
+    logger_.info("A" + to_string(dist_reward * val));
+    return dist_reward * val + dist_reward + sphere_collision;
   } else {
     return 0;
   }
