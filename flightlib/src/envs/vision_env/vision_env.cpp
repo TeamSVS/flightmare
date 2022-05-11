@@ -369,6 +369,7 @@ Eigen::Vector3d camera_dir =  rot_mat * origin;
 //Scalar attitude_reward = 0.6 * log(velX + 1) * tanh(1.1 * drone_dir.dot(camera_dir));
 Scalar attitude_reward = 0.5 * sqrt(velX * 0.5 + 1) * tanh(1.1 * drone_dir.dot(camera_dir));
 
+logger_.error( to_string( attitude_reward ));
 //logger_.warn( to_string( drone_dir.dot(camera_dir) ));
 
 
@@ -378,6 +379,7 @@ Scalar attitude_reward = 0.5 * sqrt(velX * 0.5 + 1) * tanh(1.1 * drone_dir.dot(c
 
  // - compute collision penalty idea di giuseppe 2
   Scalar collision_penalty = 0.0;
+  Scalar max_collision_penalty = 0.0;
   //Scalar total_detectable_obstacles = 0;
   //size_t idx = 0;
  //logger_.warn(  to_string(obstacles.size()) );
@@ -403,25 +405,26 @@ Scalar attitude_reward = 0.5 * sqrt(velX * 0.5 + 1) * tanh(1.1 * drone_dir.dot(c
 
           //collision_penalty -= 1/( 1/velX * pow(obstacle_dis, 5) + 1);
           //Dynamic safe distance alert version 1
-          Scalar soft_range = 2;
+          Scalar soft_range = 0.5; // 2
           Scalar hard_range = 0;
           Eigen::Vector3d linear_acceleration = quad_state_.a;
           Scalar acc_module = linear_acceleration.dot(obs_dir);
           Scalar vel_module = velocity_vec.dot(obs_dir);
           hard_range = acc_module > 0 ? vel_module * vel_module / (2 * acc_module) : 0;
 
-          collision_penalty -= 1 /(  abs(pow( (pow(1.2*hard_range, 2.6) + soft_range), -2.4)
+          collision_penalty = - 1 /(  abs(pow( (pow(1.2*hard_range, 2.6) + soft_range), -2.4)
                                         * pow(obstacle_dis, 6.5)) + 1);
 
-
-          // logger_.error(  to_string(i) + " " +  to_string(  pow(1.2*hard_range, 2.6))
+          if(max_collision_penalty > collision_penalty){
+              max_collision_penalty = collision_penalty;
+          }
           //   + " " +  to_string( hard_range*1.2  )      );
       }
       //collision_penalty *= collision_coeff_;
-
-    //  if(theta != theta || alpha != alpha)
-
   }
+  collision_penalty = max_collision_penalty;
+  //logger_.error(  to_string(collision_penalty)  );
+//  if(theta != theta || alpha != alpha)
 
   //idea giuseppe
   // if(quad_state_.p(QS::POSX) > xMax){
@@ -434,11 +437,11 @@ Scalar attitude_reward = 0.5 * sqrt(velX * 0.5 + 1) * tanh(1.1 * drone_dir.dot(c
   //logger_.info( "angular velocit: " + str1 + " " + str2 + " " + str3);
  // logger_.info( "attitude : " + gg);
 
- Scalar Wall_behind_penalty = velocityX > -0.01 ? survive_rew_ : velocityX / 30;
+ Scalar Wall_behind_penalty = velocityX > -0.01 ? survive_rew_ : velocityX / 5;
 
   //  change progress reward as survive reward
    Scalar total_reward =
-         dist_reward + collision_penalty + attitude_reward + Wall_behind_penalty;
+         dist_reward + collision_penalty + attitude_reward/4 + Wall_behind_penalty;
 
   string str =to_string(dist_reward) + "  " + to_string(collision_penalty)
                   +  "  " +
