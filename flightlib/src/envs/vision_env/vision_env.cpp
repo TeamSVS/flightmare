@@ -349,7 +349,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
 
  Eigen::Vector3d pos_new(quad_state_.p(QS::POSX), quad_state_.p(QS::POSY), quad_state_.p(QS::POSZ));
  Eigen::Vector3d pos_old(quad_old_state_.p(QS::POSX), quad_old_state_.p(QS::POSY), quad_old_state_.p(QS::POSZ));
-
+ Eigen::Vector3d velocity_vec = quad_state_.v;
  Eigen::Vector3d drone_dir;
  Eigen::Vector3d WorldX(1,0,0);
  if(drone_orientation_.compare("global") == 0){
@@ -357,7 +357,8 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
       gg = "global";
  }else {
 
-      drone_dir = (pos_new - pos_old) / getDistance(pos_new, pos_old);
+    //  drone_dir = (pos_new - pos_old) / getDistance(pos_new, pos_old);
+      drone_dir = velocity_vec / quad_state_.v.norm();;
       gg = "local";
  }
 
@@ -365,9 +366,10 @@ Eigen::Matrix3d rot_mat = quad_state_.R();
 Eigen::Vector3d origin(1,0,0);
 Eigen::Vector3d camera_dir =  rot_mat * origin;
 //Scalar attitude_reward = attitude_ori_coeff_ * tanh(2.2 * drone_dir.dot(camera_dir));
-Scalar attitude_reward = 0.6 * log(velX + 1) * tanh(1.1 * drone_dir.dot(camera_dir));
+//Scalar attitude_reward = 0.6 * log(velX + 1) * tanh(1.1 * drone_dir.dot(camera_dir));
+Scalar attitude_reward = 0.5 * sqrt(velX * 0.5 + 1) * tanh(1.1 * drone_dir.dot(camera_dir));
 
-logger_.warn( to_string( drone_dir.dot(camera_dir) ));
+//logger_.warn( to_string( drone_dir.dot(camera_dir) ));
 
 
  // get N most closest obstacles as the observation
@@ -398,7 +400,19 @@ logger_.warn( to_string( drone_dir.dot(camera_dir) ));
           // if(collision0_penalty < -1 ){
           //   collision_penalty = -1;
           //collision_penalty -= 1/(0.1 * pow(obstacle_dis, 8) + 1);
-          collision_penalty -= 1/( 1/velX * pow(obstacle_dis, 5) + 1);
+
+          //collision_penalty -= 1/( 1/velX * pow(obstacle_dis, 5) + 1);
+          //Dynamic safe distance alert version 1
+          Scalar soft_range = 2;
+          Scalar hard_range = 0;
+          Eigen::Vector3d linear_acceleration = quad_state_.a;
+          Scalar acc_module = linear_acceleration.dot(obs_dir);
+          Scalar vel_module = velocity_vec.dot(obs_dir);
+          hard_range = vel_module * vel_module / (2 * acc_module);
+
+          collision_penalty -= 1 /(  pow( (pow(1.2*hard_range, 2.6) + soft_range), -2.4)
+                                        * pow(obstacle_dis, 6.5) + 1);
+
       }
       //collision_penalty *= collision_coeff_;
 
@@ -417,7 +431,7 @@ logger_.warn( to_string( drone_dir.dot(camera_dir) ));
   //logger_.info( "angular velocit: " + str1 + " " + str2 + " " + str3);
  // logger_.info( "attitude : " + gg);
 
- Scalar Wall_behind_penalty = velocityX > survive_rew_ ? 0 : velocityX / 30;
+ Scalar Wall_behind_penalty = velocityX > -0.01 ? survive_rew_ : velocityX / 30;
 
   //  change progress reward as survive reward
    Scalar total_reward =
