@@ -115,16 +115,24 @@ class VisionEnv final : public EnvBase {
 
  private:
   //utility
+  Eigen::Vector3d getDroneDirection();
+  //reward component computing functions
   Scalar computeCollisionApproachPenalty();
-  Scalar computeXprogressReward();
+  Scalar computeXProgressReward();
+  Scalar computeSmoothGoalApproachReward();
   Scalar computeLinearVelReward();
   Scalar computeGoalApproachReward();
   Scalar computeTimePenalty(Scalar time_weight);
   Scalar computeCamOrientationReward();
-  bool multiSummedComponentsReward(Ref<Vector<>> reward);
-  bool newReward(Ref<Vector<>> reward);
-  bool camAndXBasedReward(Ref<Vector<>> reward);
+  Scalar computeObstacleMarginPenalty();
+  Scalar computeObstacleApproachPenalty();
   Scalar wallBehindPatch(Scalar current_tot_reward, Scalar margin);
+  //reward functions
+  Scalar multiSummedComponentsReward();
+  Scalar newReward();
+  Scalar camAndXBasedReward();
+  Scalar ObstacleMarginBasedReward();
+
   //others
   bool computeReward(Ref<Vector<>> reward);
   void init();

@@ -103,7 +103,7 @@ bool VisionEnv::reset(Ref<Vector<>> obs) {
 
   max_dist_ = goal_pos_ - quad_state_.p;
   num_collision = 0;
-  xMax = 0;
+  xMax = quad_state_.x(QS::POSX);
 
   //  std::cout << "Reset!\n";
   //  std::cout << "Starting Drone X:" << quad_state_.p(QS::POSX) << "\n";
@@ -291,6 +291,12 @@ bool VisionEnv::simDynamicObstacles(const Scalar dt) {
   return true;
 }
 
+
+//_____________reward UTILS functions___________//
+static double normalizeValue(Scalar val, Scalar min, Scalar max){
+    //normaalize between [-1,1]
+    return 2*(val-min)/(max-min) -1;
+}
 static double getDistance(Vector<3> v1, Vector<3> v2) {
   double len = 0;
   for (int i = 0; i < 3; i++) {
@@ -298,14 +304,21 @@ static double getDistance(Vector<3> v1, Vector<3> v2) {
   }
   return sqrt(len);
 }
-
 static Scalar dotProduct(Vector<3> vect_A, Vector<3> vect_B) {
   Scalar product = 0;
   // Loop for calculate dot product
   for (int i = 0; i < 3; i++) product = product + vect_A[i] * vect_B[i];
   return product;
 }
-
+Eigen::Vector3d VisionEnv::getDroneDirection(){
+//init old and new drone position
+  Eigen::Vector3d pos_new(quad_state_.p(QS::POSX), quad_state_.p(QS::POSY),
+                          quad_state_.p(QS::POSZ));
+  Eigen::Vector3d pos_old(quad_old_state_.p(QS::POSX),
+                          quad_old_state_.p(QS::POSY),
+                          quad_old_state_.p(QS::POSZ));
+  return (pos_new - pos_old) / getDistance(pos_new, pos_old);
+}
 //_____________START reward components calculation functions_____________//
 Scalar VisionEnv::computeCollisionApproachPenalty(){
   Scalar collision_penalty = 0.0;
@@ -339,13 +352,45 @@ Scalar VisionEnv::computeCollisionApproachPenalty(){
 
     return collision_penalty;
 }
-Scalar VisionEnv::computeXprogressReward(){
+Scalar VisionEnv::computeObstacleMarginPenalty(){
+    Scalar softMargin = 0.6;
+    Scalar hardMargin = 0.3;
+    Scalar obsDistPenalty= 0;
+    Scalar hardCoeff = -0.3;
+    Scalar softCoeff = -0.1;
+    Vector<visionenv::kNObstacles * visionenv::kNObstaclesState> obstacles;
+    getObstacleState(obstacles);
+    for (int i = 0; i < obstacles.size() / 4; i++){
+      Eigen::Vector3d ob_relative_pos(obstacles[i*4+0], obstacles[i*4+1], obstacles[i*4+2]);
+      Eigen::Vector3d ori(0,0,0);
+      Scalar radius = obstacles[i*4+3];
+      Scalar obstacle_dis = getDistance(ori, ob_relative_pos);
+
+      if(obstacle_dis < hardMargin){
+        obsDistPenalty += obstacle_dis * hardCoeff;
+      } else if(obstacle_dis < softMargin){
+        obsDistPenalty += obstacle_dis * softCoeff;
+      }
+    }
+   return obsDistPenalty;
+} //distance based collision rew with margin
+Scalar VisionEnv::computeSmoothGoalApproachReward(){
    return goal_dist_rew_ * (1.0 - sqrt(abs(goal_pos_[0] - quad_state_.p(QS::POSX)) /
                                  abs(max_dist_[0])));
-}
+} //smooth x progress based on goal distance
 Scalar VisionEnv::computeGoalApproachReward(){
     //distance traveled towards goal, normalized in [0,1]
     return 1-abs(goal_pos_[0] - quad_state_.p(QS::POSX)) / goal_pos_[0];
+}//x progress based on goal distance
+Scalar VisionEnv::computeXProgressReward(){
+    Scalar progressWeight = 0.5;
+    Scalar regressWeight =  1;
+    Scalar progress= quad_state_.p(QS::POSX) - xMax;
+    if (quad_state_.p(QS::POSX) > xMax){ //scored x progress record
+        xMax = quad_state_.p(QS::POSX);
+        return normalizeValue(progressWeight * (progress), -10, 10);
+    }
+    return normalizeValue(regressWeight * progress, -10, 10);
 }
 Scalar VisionEnv::computeLinearVelReward(){
 
@@ -364,12 +409,7 @@ Scalar VisionEnv::computeCamOrientationReward(){
       }*/
   } //Old attitude penalty version
 
-  //init old and new drone position
-  Eigen::Vector3d pos_new(quad_state_.p(QS::POSX), quad_state_.p(QS::POSY),
-                          quad_state_.p(QS::POSZ));
-  Eigen::Vector3d pos_old(quad_old_state_.p(QS::POSX),
-                          quad_old_state_.p(QS::POSY),
-                          quad_old_state_.p(QS::POSZ));
+
   Eigen::Vector3d target_dir;
   Eigen::Vector3d WorldX(1, 0, 0); //goal direction
   string gg = " ";
@@ -378,7 +418,7 @@ Scalar VisionEnv::computeCamOrientationReward(){
     target_dir = WorldX;
     gg = "global";
   } else {
-    target_dir = (pos_new - pos_old) / getDistance(pos_new, pos_old);
+    target_dir = getDroneDirection();
     gg = "local";
   }
 
@@ -436,6 +476,39 @@ Scalar VisionEnv::computeCamOrientationReward(){
     // logger_.info( "attitude : " + gg);
   }  // OLD attitude penalty based on y and z
 }
+Scalar VisionEnv::computeObstacleApproachPenalty(){
+  const Scalar velocityX =quad_state_.x(QS::VELX);
+  const Scalar velocityY =quad_state_.x(QS::VELY);
+  const Scalar velocityZ =quad_state_.x(QS::VELZ);
+  const Scalar velX = abs(velocityX);
+// get N most closest obstacles as the observation
+ Vector<visionenv::kNObstacles * visionenv::kNObstaclesState> obstacles;
+ getObstacleState(obstacles);
+
+ // - compute collision penalty idea di giuseppe 2
+  Scalar collision_penalty = 0.0;
+  Eigen::Vector3d drone_dir = getDroneDirection();
+  for (int i = 0; i < obstacles.size() / 4; i++){
+      //per single obstacle
+      Eigen::Vector3d ob_relative_pos(obstacles[i*4+0], obstacles[i*4+1], obstacles[i*4+2]);
+      Eigen::Vector3d ori(0,0,0);
+      Scalar radius = obstacles[i*4+3];
+      Scalar obstacle_dis = getDistance(ori, ob_relative_pos);
+      obstacle_dis = (obstacle_dis > 0) && (obstacle_dis < max_detection_range_) ?
+                    obstacle_dis : max_detection_range_;
+      Eigen::Vector3d obs_dir = ob_relative_pos / obstacle_dis;
+      Scalar dot_theta = abs(obs_dir.dot(drone_dir));
+      Scalar theta = acos(dot_theta); // the magnitude of these 2 dirs are one.
+      theta = theta * 180 / abs(obstacle_dis * 3.141592653589793);
+      Scalar alpha = radius * 180 / abs(obstacle_dis * 3.141592653589793);
+
+      if(theta < alpha && theta == theta && alpha == alpha){ //non modificare pls
+          collision_penalty -= 1/( 1/velX * pow(obstacle_dis, 5) + 1);
+      }
+
+  }
+    return collision_penalty;
+}
 Scalar VisionEnv::wallBehindPatch(Scalar current_tot_reward, Scalar margin){
   if (quad_state_.p(QS::POSX) > xMax) {
     xMax = quad_state_.p(QS::POSX);
@@ -448,7 +521,7 @@ Scalar VisionEnv::wallBehindPatch(Scalar current_tot_reward, Scalar margin){
 //_____________END reward components calculation functions END_____________//
 
 //_____________COMPLETE REWARD FUNCTIONS_____________//
-bool VisionEnv::multiSummedComponentsReward(Ref<Vector<>> reward){
+Scalar VisionEnv::multiSummedComponentsReward(){
 // 0 to deactivate reward component
   Scalar collision_weight = 0; //for approaching or colliding with the obstacle
   Scalar distance_weight = 1; //for moving towards x
@@ -461,7 +534,7 @@ bool VisionEnv::multiSummedComponentsReward(Ref<Vector<>> reward){
   // - compute approach penalty: from 0 if far from the obstacle, to 1 if collides
   Scalar collision_penalty = computeCollisionApproachPenalty() * collision_weight;
   // - go towards goal reward range [0,1]
-  Scalar dist_reward = computeXprogressReward() * distance_weight;
+  Scalar dist_reward = computeSmoothGoalApproachReward() * distance_weight;
   // - tracking a constant linear velocity
   Scalar lin_vel_reward = computeLinearVelReward() * lin_vel_weight;
   // - time penalty
@@ -492,13 +565,13 @@ bool VisionEnv::multiSummedComponentsReward(Ref<Vector<>> reward){
   //Scalar min_possible_rew = - max_possible_rew;
   //normalize total reward from -1 to 1
   //total_reward = 2*(total_reward - min_possible_rew) / (max_possible_rew - min_possible_rew) -1;
-  reward << total_reward;
-  return true;
+
+  return total_reward;
 }
-bool VisionEnv::camAndXBasedReward(Ref<Vector<>> reward){
+Scalar VisionEnv::camAndXBasedReward(){
   Scalar total_reward = 0;
   Scalar attitude_reward = computeCamOrientationReward();
-  Scalar dist_reward = computeXprogressReward();
+  Scalar dist_reward = computeSmoothGoalApproachReward();
   // idea giuseppe: muro dietro al drone. Se va indietro lo penalizzi
   if (quad_state_.p(QS::POSX) <= quad_old_state_.p(QS::POSX)) {  // se non ho fatto passo verso x
     total_reward = 0;              // non do reward per nulla
@@ -509,10 +582,9 @@ bool VisionEnv::camAndXBasedReward(Ref<Vector<>> reward){
       total_reward = 0;
     }
   }
-  reward << 0,0,0,0,total_reward;
-  return true;
+  return total_reward;
 }
-bool VisionEnv::newReward(Ref<Vector<>> reward){
+Scalar VisionEnv::newReward(){
   Scalar distance_weight = 1; //for moving towards x
   Scalar attitude_weight = 1; //for orienting the camera in the target direction
   // - go towards goal reward
@@ -522,12 +594,20 @@ bool VisionEnv::newReward(Ref<Vector<>> reward){
   attitude_reward = (attitude_reward + 1) / 2 -1; //normalize between [-1,0]
   attitude_reward *= attitude_weight;
   Scalar total_reward = dist_reward + attitude_reward;
-  reward << 0,0,0,0, total_reward;
-  return true;
+  return total_reward;
 }
+Scalar VisionEnv::ObstacleMarginBasedReward(){
+    Scalar dist_reward= computeXProgressReward();
+    Scalar attitude_reward= computeCamOrientationReward();
+    Scalar obstacle_penalty = computeObstacleMarginPenalty();
+    return dist_reward + attitude_reward+obstacle_penalty;
+}
+
 //_________MAIN REWARD FUNCTION: THE ONE THAT CALLS THE OTHERS_________//
 bool VisionEnv::computeReward(Ref<Vector<>> reward) {
-  return newReward(reward);
+  Scalar total_reward = ObstacleMarginBasedReward();
+  reward << 0,0,0,0, total_reward;
+  return true;
 }
 
 bool VisionEnv::isTerminalState(Scalar &reward) {
