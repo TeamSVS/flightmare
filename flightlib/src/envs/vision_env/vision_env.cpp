@@ -367,7 +367,7 @@ Eigen::Vector3d origin(1,0,0);
 Eigen::Vector3d camera_dir =  rot_mat * origin;
 //Scalar attitude_reward = attitude_ori_coeff_ * tanh(2.2 * drone_dir.dot(camera_dir));
 //Scalar attitude_reward = 0.6 * log(velX + 1) * tanh(1.1 * drone_dir.dot(camera_dir));
-Scalar attitude_reward = 0.5 * sqrt(velX * 0.5 + 1) * tanh(1.1 * drone_dir.dot(camera_dir));
+Scalar attitude_reward = 0.5 * sqrt(velX * 0.5) * tanh(1.1 * drone_dir.dot(camera_dir));
 
 //logger_.error( to_string( attitude_reward ));
 //logger_.warn( to_string( drone_dir.dot(camera_dir) ));
@@ -405,7 +405,7 @@ Scalar attitude_reward = 0.5 * sqrt(velX * 0.5 + 1) * tanh(1.1 * drone_dir.dot(c
 
           //collision_penalty -= 1/( 1/velX * pow(obstacle_dis, 5) + 1);
           //Dynamic safe distance alert version 1
-          Scalar soft_range = 0.5; // 2
+          Scalar soft_range = 0.2; // 2
           Scalar hard_range = 0;
           Eigen::Vector3d linear_acceleration = quad_state_.a;
           Scalar acc_module = linear_acceleration.dot(obs_dir);
