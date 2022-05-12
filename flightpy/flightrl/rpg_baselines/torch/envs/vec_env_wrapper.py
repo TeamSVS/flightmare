@@ -392,9 +392,9 @@ class FlightEnvVec(VecEnv, ABC):
 
         return (
             new_obs,
-            self._reward_components[:, -1].copy()[0],
-            self._done.copy()[0],
-            info.copy()[0],
+            self._reward_components[:, -1].copy(),
+            self._done.copy(),
+            info.copy(),
         )
 
     def sample_actions(self):
