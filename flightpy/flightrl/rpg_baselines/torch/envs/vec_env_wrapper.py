@@ -1,3 +1,4 @@
+import logging
 import os
 import pickle
 import signal
@@ -13,7 +14,9 @@ import psutil
 import torch
 import torchvision.transforms as transforms
 import random
+
 from threading import Timer, Thread, Event
+
 import logging
 import gym
 import numpy as np
@@ -148,7 +151,8 @@ class FlightEnvVec(VecEnv, ABC):
 
         self.act_dim = self.wrapper.getActDim()
         self.obs_dim = self.wrapper.getObsDim()  # C++ obs shape
-        self.rew_dim = self.wrapper.getRewDim()
+        # self.rew_dim = self.wrapper.getRewDim()
+        self.rew_dim = 1
         self.img_width = self.wrapper.getImgWidth()
         self.img_height = self.wrapper.getImgHeight()
 
@@ -206,7 +210,7 @@ class FlightEnvVec(VecEnv, ABC):
         )
         #
         self._reward_components = np.zeros(
-            [self.num_envs, self.rew_dim], dtype=np.float64
+            [self.num_envs, self.wrapper.getRewDim()], dtype=np.float64
         )
         self._done = np.zeros(self.num_envs, dtype=np.bool)
         self._extraInfoNames = self.wrapper.getExtraInfoNames()
@@ -217,7 +221,7 @@ class FlightEnvVec(VecEnv, ABC):
 
         self.rewards = [[] for _ in range(self.num_envs)]
         self.sum_reward_components = np.zeros(
-            [self.num_envs, self.rew_dim - 1], dtype=np.float64
+            [self.num_envs, self.wrapper.getRewDim() - 1], dtype=np.float64
         )
 
         self._quadstate = np.zeros([self.num_envs, 25], dtype=np.float64)
@@ -227,6 +231,11 @@ class FlightEnvVec(VecEnv, ABC):
         #  state normalization
         self.obs_rms = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
         self.obs_rms_new = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
+
+        self.maxPos = np.zeros([self.num_envs], dtype=np.float64)
+        self.myReward = np.zeros([self.num_envs], dtype=np.float64)
+        self.totalReward = np.zeros([self.num_envs], dtype=np.float64)
+        self.GOAL_MAX = 60
 
     def seed(self, seed=0):
         if seed != 0:
@@ -319,46 +328,43 @@ class FlightEnvVec(VecEnv, ABC):
         self.obs_rms_new.update(self._observation)
         obs = self.normalize_obs(self._observation)
 
-        if len(self._extraInfoNames) != 0:
-            info = [
-                {
-                    "extra_info": {
-                        self._extraInfoNames[j]: self._extraInfo[i, j]
-                        for j in range(0, len(self._extraInfoNames))
-                    }
-                }
-                for i in range(self.num_envs)
-            ]
-        else:
-            info = [{} for i in range(self.num_envs)]
-
-        for i in range(self.num_envs):
-            self.rewards[i].append(self._reward_components[i, -1])
-            for j in range(self.rew_dim - 1):
-                self.sum_reward_components[i, j] += self._reward_components[i, j]
-            if self._done[i]:
-                eprew = sum(self.rewards[i])
-                eplen = len(self.rewards[i])
-                epinfo = {"r": eprew, "l": eplen}
-                for j in range(self.rew_dim - 1):
-                    epinfo[self.reward_names[j]] = self.sum_reward_components[i, j]
-                    self.sum_reward_components[i, j] = 0.0
-                info[i]["episode"] = epinfo
-                self.rewards[i].clear()
-
         logging.info("." + self.name)
         if self.is_unity_connected and 'obs' != self.mode:
             self.render_id = self.render(
                 self.render_id)  # TODO INCREASE RENDER ID IT IS REALLY NECESSARY TO DO RENDER ID +1
-            logging.info(self.getImage(True))
+
+
+
+        logging.info(self.getImage(True))
+
         new_obs = self.getObs()
+        info = self.getReward()
 
         return (
             new_obs,
-            self._reward_components[:, -1].copy()[0],
+            self.totalReward.copy()[0],
             self._done.copy()[0],
             info.copy()[0],
         )
+
+    def getReward(self):
+        info = [{} for i in range(self.num_envs)]
+        for i in range(self.num_envs):
+            if self._done[i]:
+                if self.maxPos[i] > self.GOAL_MAX:
+                    self.myReward[i] = 10
+                else:
+                    self.myReward[i] = -1.0
+                eprew = self.totalReward[i]+self.myReward[i]
+                info[i]["episode"] = {"r": eprew, "l":1}
+                self.totalReward[i]=0
+            else:
+                step = self._quadstate[i][1] - self.maxPos[i]
+                self.myReward[i] = step if step > 0 else 0
+                if self._quadstate[i][0] > self.maxPos[i]:
+                    self.maxPos[i] = self._quadstate[i][1]
+                self.totalReward[i] += self.myReward[i]
+        return info
 
     def sample_actions(self):
         actions = []
@@ -373,12 +379,17 @@ class FlightEnvVec(VecEnv, ABC):
         self.stacked_depth_imgs = []
         self.stacked_rgb_imgs = []
         self._reward_components = np.zeros(
-            [self.num_envs, self.rew_dim], dtype=np.float64
+            [self.num_envs, self.wrapper.getRewDim()], dtype=np.float64
         )
         self.wrapper.reset(self._observation, random)
         obs = self._observation
         #
         self.obs_rms_new.update(self._observation)
+        obs = self.normalize_obs(self._observation)
+
+        self.totalReward = np.zeros([self.num_envs], dtype=np.float64)
+        self.maxPos = np.zeros([self.num_envs], dtype=np.float64)
+
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
         new_obs = self.getObs()
@@ -502,13 +513,7 @@ class FlightEnvVec(VecEnv, ABC):
     def _update_epi_info(self):
         info = [{} for _ in range(self.num_envs)]
         for i in range(self.num_envs):
-            eprew = sum(self.rewards[i])
-            eplen = len(self.rewards[i])
-            epinfo = {"r": eprew, "l": eplen}
-            for j in range(self.rew_dim - 1):
-                epinfo[self.reward_names[j]] = self.sum_reward_components[i, j]
-                self.sum_reward_components[i, j] = 0.0
-            info[i]["episode"] = epinfo
+            info[i]["episode"] = {"reward": self.totalReward[i]}
             self.rewards[i].clear()
         return info
 
