@@ -334,7 +334,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   //logger_.error( to_string(quad_state_.p.norm()) );
   //logger_.error( to_string(quad_state_.p[0]) + " " + to_string(quad_state_.p[1]) + " " +  to_string(quad_state_.p[2]) );
 
-    Scalar dist_reward = sqrt(velX + 1) * (1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
+    Scalar dist_reward = 4 * sqrt(velX + 1) * (1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
 
    Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
 
