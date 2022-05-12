@@ -10,10 +10,6 @@ VisionEnv::VisionEnv()
 
 VisionEnv::VisionEnv(const std::string &cfg_path, const int env_id)
   : EnvBase() {
-  // check if configuration file exist
-  if (!(file_exists(cfg_path))) {
-    logger_.error("Configuration file %s does not exists.", cfg_path);
-  }
   // load configuration file
   cfg_ = YAML::LoadFile(cfg_path);
   //
@@ -418,8 +414,11 @@ Scalar attitude_reward = 0.5 * sqrt(velX * 0.5) * tanh(1.1 * drone_dir.dot(camer
       Scalar lateral_movement_s1 = abs(1/2 * acc_lateral_module * collision_time * collision_time
                                       + vel_lateral_module * collision_time);
 
-        logger_.error("s1: " + to_string(lateral_movement_s1) + "   radius: " + to_string(radius));
-      if(theta < alpha && theta == theta && alpha == alpha && lateral_movement_s1 < radius){ //non modificare pls
+        logger_.error("collision_time: " + to_string(collision_time) + "   s1: " + to_string(lateral_movement_s1));
+
+
+      if(theta < alpha && theta == theta && alpha == alpha && lateral_movement_s1 < radius &&
+          collision_time < 0.5){ //non modificare pls
           // collision_penalty = (1 / 10 - 1 / obstacle_dis);
           // if(collision0_penalty < -1 ){
           //   collision_penalty = -1;
@@ -432,21 +431,25 @@ Scalar attitude_reward = 0.5 * sqrt(velX * 0.5) * tanh(1.1 * drone_dir.dot(camer
 
 
           hard_range = acc_module > 0 ? vel_module * vel_module / (2 * acc_module) : 0;
-          if(hard_range>0){
-            attitude_reward = 0;
-              //logger_.error(to_string(hard_range));
-          }
+          // if(hard_range>0){
+          //      attitude_reward = 0;
+          //     //logger_.error(to_string(hard_range));
+          // }
           collision_penalty = - 1 /(  abs(pow( (pow(1.2*hard_range, 2.6) + soft_range), -2.4)
                                         * pow(obstacle_dis, 6.5)) + 1);
 
-          if(max_collision_penalty > collision_penalty){
-              max_collision_penalty = collision_penalty;
-          }
+          // if(max_collision_penalty > collision_penalty){
+          //     max_collision_penalty = collision_penalty;
+          // }
+
+          dist_reward = 0;
+          collision_penalty = 0;
+          attitude_reward = 0;
           //   + " " +  to_string( hard_range*1.2  )      );
       }
       //collision_penalty *= collision_coeff_;
   }
-  collision_penalty = max_collision_penalty;
+  //collision_penalty = max_collision_penalty;
   //collision_penalty = 0;
   //logger_.error(  to_string(collision_penalty)  );
 //  if(theta != theta || alpha != alpha)
@@ -659,11 +662,6 @@ bool VisionEnv::loadParam(const YAML::Node &cfg) {
   //
   std::string scene_file =
     getenv("FLIGHTMARE_PATH") + std::string("/flightpy/configs/scene.yaml");
-  // check if configuration file exist
-  if (!(file_exists(scene_file))) {
-    logger_.error("Unity scene configuration file %s does not exists.",
-                  scene_file);
-  }
   // load configuration file
   YAML::Node scene_cfg_node = YAML::LoadFile(scene_file);
   std::string scene_idx = "scene_" + std::to_string(scene_id_);
@@ -675,11 +673,6 @@ bool VisionEnv::loadParam(const YAML::Node &cfg) {
 }
 
 bool VisionEnv::configDynamicObjects(const std::string &yaml_file) {
-  //
-  if (!(file_exists(yaml_file))) {
-    logger_.error("Configuration file %s does not exists.", yaml_file);
-    return false;
-  }
   YAML::Node cfg_node = YAML::LoadFile(yaml_file);
 
   // logger_.info("Configuring dynamic objects");
@@ -712,10 +705,6 @@ bool VisionEnv::configDynamicObjects(const std::string &yaml_file) {
     std::string csv_name = cfg_node[object_id]["csvtraj"].as<std::string>();
     std::string csv_file = obstacle_cfg_path_ + std::string("/csvtrajs/") +
                            csv_name + std::string(".csv");
-    if (!(file_exists(csv_file))) {
-      logger_.error("Configuration file %s does not exists.", csv_file);
-      return false;
-    }
     obj->loadTrajectory(csv_file);
 
     dynamic_objects_.push_back(obj);
@@ -725,11 +714,6 @@ bool VisionEnv::configDynamicObjects(const std::string &yaml_file) {
 }
 
 bool VisionEnv::configStaticObjects(const std::string &csv_file) {
-  //
-  if (!(file_exists(csv_file))) {
-    logger_.error("Configuration file %s does not exists.", csv_file);
-    return false;
-  }
   std::ifstream infile(csv_file);
   int i = 0;
   for (auto &row : CSVRange(infile)) {

@@ -45,10 +45,6 @@ bool UnityBridge::initializeConnections() {
   // pub_.set(zmqpp::socket_option::heartbeat_interval, 1000);
 
 
-  int tcp_keepalive, tcp_keepalive_idle, tcp_keepalive_count,
-    tcp_keepalive_interval;
-  int ipv4_only, file_descriptor;
-
   // pub_.set(zmqpp::socket_option::tcp_keepalive, -1);
   // pub_.set(zmqpp::socket_option::tcp_keepalive_idle, 1);
   // pub_.set(zmqpp::socket_option::tcp_keepalive_count, 150);
@@ -235,10 +231,7 @@ void UnityBridge::setRenderOffset(const Ref<Vector<3>> render_offset) {
 }
 
 bool UnityBridge::setObjectCSV(const std::string& csv_file) {
-  if (!(file_exists(csv_file))) {
-    logger_.error("Configuration file %s does not exists.", csv_file);
-    return false;
-  }
+
   // logger_.info("Scene ID is set to %d.", scene_id);
   settings_.object_csv = csv_file;
   return true;
@@ -329,26 +322,29 @@ FrameID UnityBridge::handleOutput(const FrameID sent_frame_id) {
   zmqpp::message msg;
   SubMessage_t sub_msg;
   for (int i = 0; i < max_output_request_; i++) {
-    //   // create new message object zmqpp::message msg;
-    //   std::cout << "receiving messages" << std::endl;
-    sub_.receive(msg);
+       // create new message object zmqpp::message msg;
+       //std::cout << i << std::endl;
+    if (sub_.receive(msg, true)) {
+      // unpack message metadata
 
-    // unpack message metadata
-    std::string json_sub_msg = msg.get(0);
-    // parse metadata
-    sub_msg = json::parse(json_sub_msg);
+      std::string json_sub_msg = msg.get(0);
+      // parse metadata
+      sub_msg = json::parse(json_sub_msg);
 
-    //
-    // std::cout << "i " << 0 << " - " << received
-    //           << ", sent frame id : " << sent_frame_id
-    //           << ", received frame id : " << sub_msg.frame_id << std::endl;
-    if (sub_msg.frame_id == sent_frame_id) break;
-
+      //
+      // std::cout << "i " << 0 << " - "
+      //           << ", sent frame id : " << sent_frame_id
+      //           << ", received frame id : " << sub_msg.frame_id << std::endl;
+      if (sub_msg.frame_id == sent_frame_id){
+        break;
+      }
+    }
     if (i >= (max_output_request_ - 1)) {
-      logger_.error(
-        "Cannot find the updated frame id aftet %d request. Using the last "
-        "request data.",
-        max_output_request_);
+    //  logger_.error(
+    //    "Cannot find the updated frame id after %d request. Using the last "
+    //    "request data.",
+    //    max_output_request_);
+      return sub_msg.frame_id;
     }
   }
 

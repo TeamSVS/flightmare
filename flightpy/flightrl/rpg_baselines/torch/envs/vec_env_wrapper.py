@@ -1,3 +1,4 @@
+import logging
 import os
 import pickle
 import signal
@@ -13,7 +14,9 @@ import psutil
 import torch
 import torchvision.transforms as transforms
 import random
+
 from threading import Timer, Thread, Event
+
 import logging
 import gym
 import numpy as np
@@ -101,6 +104,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.name = name
         self.n_frames = n_frames
         self.env_cfg = env_cfg
+        self.mode = "obs"  # rgb, depth, both,obs
         self.stopFlag = Event()
         self.thread = PingThread(self.stopFlag, self)
         if in_port == 0 or out_port == 0:
@@ -112,15 +116,26 @@ class FlightEnvVec(VecEnv, ABC):
             env_cfg["unity"]["input_port"] = in_port
             env_cfg["unity"]["output_port"] = out_port
 
+        if 'obs' == self.mode:
+            self.env_cfg["unity"]["render"] = "no"
+        else:
+            self.spawn_flightmare(self.in_port, self.out_port)
+            self.env_cfg["rgb_camera"]["on"] = "yes"
+            self.env_cfg["unity"]["render"] = "yes"
+
         self.wrapper = VisionEnv_v1(dump(self.env_cfg, Dumper=RoundTripDumper), False)
         self.is_unity_connected = False
         self.var = None
         self.mean = None
         self.envs = None
         self._reward = None
-        self.mode = mode  # rgb, depth, both
         self.seed_val = 0
         self._heartbeat = True if env_cfg["simulation"]["heartbeat"] == "yes" else False
+
+        if self._heartbeat and 'obs' != self.mode:
+            self.thread.daemon = True
+            self.thread.start()
+
         self.obs_ranges_dic = {0: [0, 10],
                                1: [-20, 80],
                                2: [-10, 10],
@@ -137,16 +152,14 @@ class FlightEnvVec(VecEnv, ABC):
 
         self.act_dim = self.wrapper.getActDim()
         self.obs_dim = self.wrapper.getObsDim()  # C++ obs shape
-        self.rew_dim = self.wrapper.getRewDim()
+        # self.rew_dim = self.wrapper.getRewDim()
+        self.rew_dim = 1
         self.img_width = self.wrapper.getImgWidth()
         self.img_height = self.wrapper.getImgHeight()
 
         ###########################################
         ##############--HB-DEAMON---###############
         ###########################################
-        if self._heartbeat:
-            self.thread.daemon = True
-            self.thread.start()
 
         ###########################################
         ###############--OBS-SPACE--###############
@@ -166,6 +179,12 @@ class FlightEnvVec(VecEnv, ABC):
             drone_spaces['rgb'] = spaces.Box(
                 low=0, high=255,
                 shape=(RGB_CHANNELS, self.n_frames, self.img_height, self.img_width), dtype=np.uint8
+            )
+
+        if 'obs' == self.mode:
+            drone_spaces['obs'] = spaces.Box(
+                low=-np.Inf, high=np.Inf,
+                shape=(40,), dtype=np.float64
             )
 
         self._observation_space = spaces.Dict(spaces=drone_spaces)
@@ -192,7 +211,7 @@ class FlightEnvVec(VecEnv, ABC):
         )
         #
         self._reward_components = np.zeros(
-            [self.num_envs, self.rew_dim], dtype=np.float64
+            [self.num_envs, self.wrapper.getRewDim()], dtype=np.float64
         )
         self._done = np.zeros(self.num_envs, dtype=np.bool)
         self._extraInfoNames = self.wrapper.getExtraInfoNames()
@@ -203,7 +222,7 @@ class FlightEnvVec(VecEnv, ABC):
 
         self.rewards = [[] for _ in range(self.num_envs)]
         self.sum_reward_components = np.zeros(
-            [self.num_envs, self.rew_dim - 1], dtype=np.float64
+            [self.num_envs, self.wrapper.getRewDim() - 1], dtype=np.float64
         )
 
         self._quadstate = np.zeros([self.num_envs, 25], dtype=np.float64)
@@ -237,13 +256,17 @@ class FlightEnvVec(VecEnv, ABC):
         #  state normalization
         self.obs_rms = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
         self.obs_rms_new = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
-        self.spawn_flightmare(self.in_port, self.out_port)
+
+        self.maxPos = np.zeros([self.num_envs], dtype=np.float64)
+        self.myReward = np.zeros([self.num_envs], dtype=np.float64)
+        self.totalReward = np.zeros([self.num_envs], dtype=np.float64)
+        self.GOAL_MAX = 60
 
     def seed(self, seed=0):
         if seed != 0:
             self.seed_val = seed
 
-        self.wrapper.setSeed(self.seed_val)
+        self.wrapper.setSeed(42)
 
     def spawn_flightmare(self, input_port=10277, output_port=10278):
         if input_port > 0 and output_port > 0:
@@ -262,16 +285,20 @@ class FlightEnvVec(VecEnv, ABC):
             sys.exit(1)
 
     def kill_flightmare(self):
-        os.killpg(os.getpgid(self._flightmare_process.pid), signal.SIGTERM)
-        self._flightmare_process = None
+        if self.mode != "obs":
+            os.killpg(os.getpgid(self._flightmare_process.pid), signal.SIGTERM)
+            self._flightmare_process = None
 
     def change_obstacles(self, seed=0, difficult="medium", level=0, random=False):
         # TODO Random not yet implemented
 
         self.close()
         self.kill_flightmare()
-        self.spawn_flightmare(self.in_port, self.out_port)
 
+        if 'obs' != self.mode:
+            self.spawn_flightmare(self.in_port, self.out_port)
+            self.kill_flightmare()
+        print("ENV-CHANGED")
         self.env_cfg["environment"]["level"] = difficult
         self.env_cfg["environment"]["env_folder"] = "environment_" + str(level)
 
@@ -282,7 +309,8 @@ class FlightEnvVec(VecEnv, ABC):
         self.stopFlag.clear()
         self.seed(self.seed_val)
         # Require render cfg to be True
-        self.connectUnity()
+        if 'obs' != self.mode:
+            self.connectUnity()
         return self.reset(True)
 
     def update_rms(self):
@@ -364,9 +392,9 @@ class FlightEnvVec(VecEnv, ABC):
 
         return (
             new_obs,
-            self._reward_components[:, -1].copy(),
-            self._done.copy(),
-            info.copy(),
+            self._reward_components[:, -1].copy()[0],
+            self._done.copy()[0],
+            info.copy()[0],
         )
 
     def sample_actions(self):
@@ -382,12 +410,17 @@ class FlightEnvVec(VecEnv, ABC):
         self.stacked_depth_imgs = []
         self.stacked_rgb_imgs = []
         self._reward_components = np.zeros(
-            [self.num_envs, self.rew_dim], dtype=np.float64
+            [self.num_envs, self.wrapper.getRewDim()], dtype=np.float64
         )
         self.wrapper.reset(self._observation, random)
         obs = self._observation
         #
         self.obs_rms_new.update(self._observation)
+        obs = self.normalize_obs(self._observation)
+
+        self.totalReward = np.zeros([self.num_envs], dtype=np.float64)
+        self.maxPos = np.zeros([self.num_envs], dtype=np.float64)
+
         if self.is_unity_connected:
             self.render_id = self.render(self.render_id)
         new_obs = self.getObs()
@@ -437,17 +470,20 @@ class FlightEnvVec(VecEnv, ABC):
                 with open("NEW_VAL_NORMALIZATION.txt", "w") as myfile:
                     myfile.write(json.dumps(self.obs_ranges_dic))
 
-            self.stacked_drone_state = self._stack_frames(self.stacked_drone_state, drone_state)
-            new_obs['state'] = np.array(self.stacked_drone_state).swapaxes(0, 1).swapaxes(1, 2)
-        if 'depth' == self.mode or 'both' == self.mode:
-            depth_imgs = self.getDepthImage().reshape((self.num_envs, 1, self.img_height, self.img_width))
-            self.stacked_depth_imgs = self._stack_frames(self.stacked_depth_imgs, depth_imgs)
-            new_obs['depth'] = np.array(self.stacked_depth_imgs).swapaxes(0, 1).swapaxes(1, 2)
-        if 'rgb' == self.mode or 'both' == self.mode:
-            rgb_imgs = _normalize_img(
-                np.reshape(self.getImage(True), (self.num_envs, RGB_CHANNELS, self.img_width, self.img_height)))
-            self.stacked_rgb_imgs = self._stack_frames(self.stacked_rgb_imgs, rgb_imgs)
-            new_obs['rgb'] = np.array(self.stacked_rgb_imgs).swapaxes(0, 1).swapaxes(1, 2)
+        self.stacked_drone_state = self._stack_frames(self.stacked_drone_state, drone_state)
+        new_obs['state'] = np.array(self.stacked_drone_state).swapaxes(0, 1).swapaxes(1, 2)
+        if 'obs' != self.mode:
+            if 'depth' == self.mode or 'both' == self.mode:
+                depth_imgs = self.getDepthImage().reshape((self.num_envs, 1, self.img_height, self.img_width))
+                self.stacked_depth_imgs = self._stack_frames(self.stacked_depth_imgs, depth_imgs)
+                new_obs['depth'] = np.array(self.stacked_depth_imgs).swapaxes(0, 1).swapaxes(1, 2)
+            if 'rgb' == self.mode or 'both' == self.mode:
+                rgb_imgs = _normalize_img(
+                    np.reshape(self.getImage(True), (self.num_envs, RGB_CHANNELS, self.img_width, self.img_height)))
+                self.stacked_rgb_imgs = self._stack_frames(self.stacked_rgb_imgs, rgb_imgs)
+                new_obs['rgb'] = np.array(self.stacked_rgb_imgs).swapaxes(0, 1).swapaxes(1, 2)
+        else:
+            new_obs['obs'] = self._observation[:, 15:].copy()
 
         return new_obs.copy()
 
@@ -508,13 +544,7 @@ class FlightEnvVec(VecEnv, ABC):
     def _update_epi_info(self):
         info = [{} for _ in range(self.num_envs)]
         for i in range(self.num_envs):
-            eprew = sum(self.rewards[i])
-            eplen = len(self.rewards[i])
-            epinfo = {"r": eprew, "l": eplen}
-            for j in range(self.rew_dim - 1):
-                epinfo[self.reward_names[j]] = self.sum_reward_components[i, j]
-                self.sum_reward_components[i, j] = 0.0
-            info[i]["episode"] = epinfo
+            info[i]["episode"] = {"reward": self.totalReward[i]}
             self.rewards[i].clear()
         return info
 
@@ -536,7 +566,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.wrapper.sendUnityPing()
 
     def setFakeQuadrotorScale(self, scale=1.0):
-        self.wrapper.setFakeQuadrotorScale(1.0)
+        self.wrapper.setFakeQuadrotorScale(scale)
 
     def disconnectUnity(self):
         self.is_unity_connected = False
