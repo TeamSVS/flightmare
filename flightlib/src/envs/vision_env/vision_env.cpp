@@ -407,11 +407,15 @@ Scalar attitude_reward = 0.5 * sqrt(velX * 0.5) * tanh(1.1 * drone_dir.dot(camer
           //Dynamic safe distance alert version 1
           Scalar soft_range = 0.2; // 2
           Scalar hard_range = 0;
+
           Eigen::Vector3d linear_acceleration = quad_state_.a;
           Scalar acc_module = linear_acceleration.dot(obs_dir);
           Scalar vel_module = velocity_vec.dot(obs_dir);
           hard_range = acc_module > 0 ? vel_module * vel_module / (2 * acc_module) : 0;
-
+          if(hard_range>0){
+            attitude_reward = 0;
+              logger_.error(to_string(hard_range));
+          }
           collision_penalty = - 1 /(  abs(pow( (pow(1.2*hard_range, 2.6) + soft_range), -2.4)
                                         * pow(obstacle_dis, 6.5)) + 1);
 
@@ -448,7 +452,7 @@ Scalar attitude_reward = 0.5 * sqrt(velX * 0.5) * tanh(1.1 * drone_dir.dot(camer
                   +  "  " +
     to_string(attitude_reward) +  "  " + to_string(Wall_behind_penalty)
     +  "  " + to_string(total_reward) ;
-  logger_.warn(str);
+  //logger_.warn(str);
   //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
 
 

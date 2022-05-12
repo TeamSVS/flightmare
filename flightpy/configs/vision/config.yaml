@@ -1,5 +1,5 @@
 environment:
-  level: "easy" # three difficulty level [easy, medium, hard]
+  level: "medium" # three difficulty level [easy, medium, hard]
   env_folder: "environment_0" # configurations for dynamic and static obstacles
   world_box: [ -20, 80, -10, 10, 0.0, 10 ] # Bounding box applied during training, exiting this box terminates the episode. [xmin, xmax, ymin, ymax, zmin, zmax]
   goal_vel: [ 3.0, 0.0, 0.0 ] # goal velicty for tracking vx, vy, vz
@@ -30,8 +30,8 @@ rgb_camera:
   t_BC: [ 0.0, 0.0, 0.3 ] # translational vector of the camera with repect to the body frame
   r_BC: [ 0.0, 0.0, -90] # - rotational angle (roll, pitch, yaw) of the camera in degree.
   channels: 3
-  width: 100
-  height: 100
+  width: 150
+  height: 150
   fov: 100.0
   enable_depth: yes
   enable_segmentation: no
@@ -47,10 +47,10 @@ simulation:
   seed: 1
   sim_dt: 0.02
   max_t: 20.0
-  num_envs: 1
+  num_envs: 3
   num_threads: 32
   heartbeat: yes
-  fakeQuadrotorScaleSize: 1
+  fakeQuadrotorScaleSize: 0.0001
 
 quadrotor_dynamics:
   mass: 0.752
