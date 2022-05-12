@@ -327,14 +327,14 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   const Scalar velocityY =quad_state_.x(QS::VELY);
   const Scalar velocityZ =quad_state_.x(QS::VELZ);
 
-  const Scalar velX = abs(velocityX);
+ const Scalar velX = velocityX > 0 ? abs(velocityX) : 0;
 
   logger_.error( to_string(velocityX) + " " + to_string(velocityY) + " " +  to_string(velocityZ) );
   //logger_.error( to_string(positionX) + " " + to_string(positionY) + " " +  to_string(positionZ) );
   //logger_.error( to_string(quad_state_.p.norm()) );
   //logger_.error( to_string(quad_state_.p[0]) + " " + to_string(quad_state_.p[1]) + " " +  to_string(quad_state_.p[2]) );
 
-    Scalar dist_reward = sqrt(velX + 1) * (1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
+    Scalar dist_reward = 2 * sqrt(velX) * (1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
 
    Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
 
@@ -349,7 +349,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
 
  Eigen::Vector3d pos_new(quad_state_.p(QS::POSX), quad_state_.p(QS::POSY), quad_state_.p(QS::POSZ));
  Eigen::Vector3d pos_old(quad_old_state_.p(QS::POSX), quad_old_state_.p(QS::POSY), quad_old_state_.p(QS::POSZ));
-
+Eigen::Vector3d velocity_vec = quad_state_.v;
  Eigen::Vector3d drone_dir;
  Eigen::Vector3d WorldX(1,0,0);
  if(drone_orientation_.compare("global") == 0){
@@ -357,7 +357,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
       gg = "global";
  }else {
 
-      drone_dir = (pos_new - pos_old) / getDistance(pos_new, pos_old);
+        drone_dir = velocity_vec / quad_state_.v.norm();
       gg = "local";
  }
 
@@ -376,6 +376,7 @@ logger_.warn( to_string( drone_dir.dot(camera_dir) ));
 
  // - compute collision penalty idea di giuseppe 2
   Scalar collision_penalty = 0.0;
+  Scalar max_collision_penalty = 0.0;
   //Scalar total_detectable_obstacles = 0;
   //size_t idx = 0;
  //logger_.warn(  to_string(obstacles.size()) );
@@ -398,14 +399,27 @@ logger_.warn( to_string( drone_dir.dot(camera_dir) ));
           // if(collision0_penalty < -1 ){
           //   collision_penalty = -1;
           //collision_penalty -= 1/(0.1 * pow(obstacle_dis, 8) + 1);
-          collision_penalty -= 1/( 1/velX * pow(obstacle_dis, 5) + 1);
+          //collision_penalty -= 1/( 1/velX * pow(obstacle_dis, 5) + 1);
+          Scalar soft_range = 0.5; // 2
+        Scalar hard_range = 0;
+        Eigen::Vector3d linear_acceleration = quad_state_.a;
+        Scalar acc_module = linear_acceleration.dot(obs_dir);
+        Scalar vel_module = velocity_vec.dot(obs_dir);
+        hard_range = acc_module > 0 ? vel_module * vel_module / (2 * acc_module) : 0;
+
+        collision_penalty = - 1 /(  abs(pow( (pow(1.2*hard_range, 2.6) + soft_range), -2.4)
+                                      * pow(obstacle_dis, 6.5)) + 1);
+
+        if(max_collision_penalty > collision_penalty){
+            max_collision_penalty = collision_penalty;
+        }
       }
       //collision_penalty *= collision_coeff_;
 
     //  if(theta != theta || alpha != alpha)
       //logger_.warn(  to_string(i) + " " +  to_string(theta) + " " + to_string(alpha) );
   }
-
+  collision_penalty = max_collision_penalty;
   //idea giuseppe
   // if(quad_state_.p(QS::POSX) > xMax){
   //   dist_reward = dist_reward *(1 + codrone_dir.dot(camera_dir)llision_penalty);
