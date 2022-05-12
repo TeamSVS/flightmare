@@ -418,7 +418,7 @@ Scalar attitude_reward = 0.5 * sqrt(velX * 0.5) * tanh(1.1 * drone_dir.dot(camer
 
 
       if(theta < alpha && theta == theta && alpha == alpha && lateral_movement_s1 < radius &&
-          collision_time < 0.5){ //non modificare pls
+          collision_time < 3 && collision_time > 0){ //non modificare pls
           // collision_penalty = (1 / 10 - 1 / obstacle_dis);
           // if(collision0_penalty < -1 ){
           //   collision_penalty = -1;
@@ -435,21 +435,21 @@ Scalar attitude_reward = 0.5 * sqrt(velX * 0.5) * tanh(1.1 * drone_dir.dot(camer
           //      attitude_reward = 0;
           //     //logger_.error(to_string(hard_range));
           // }
-          collision_penalty = - 1 /(  abs(pow( (pow(1.2*hard_range, 2.6) + soft_range), -2.4)
-                                        * pow(obstacle_dis, 6.5)) + 1);
+          //collision_penalty = - 1 /(  abs(pow( (pow(1.2*hard_range, 2.6) + soft_range), -2.4)
+            //                            * pow(obstacle_dis, 6.5)) + 1);
+            collision_penalty = - 1 / ( obstacle_dis * sqrt(collision_time) + 1);
+          if(max_collision_penalty > collision_penalty){
+              max_collision_penalty = collision_penalty;
+          }
 
-          // if(max_collision_penalty > collision_penalty){
-          //     max_collision_penalty = collision_penalty;
-          // }
-
-          dist_reward = 0;
-          collision_penalty = 0;
-          attitude_reward = 0;
+          // dist_reward = 0;
+          // collision_penalty = 0;
+          // attitude_reward = 0;
           //   + " " +  to_string( hard_range*1.2  )      );
       }
       //collision_penalty *= collision_coeff_;
   }
-  //collision_penalty = max_collision_penalty;
+  collision_penalty = max_collision_penalty;
   //collision_penalty = 0;
   //logger_.error(  to_string(collision_penalty)  );
 //  if(theta != theta || alpha != alpha)
