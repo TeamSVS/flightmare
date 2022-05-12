@@ -24,6 +24,7 @@ from flightgym import VisionEnv_v1
 from gym import spaces
 from ruamel.yaml import RoundTripDumper, YAML, dump
 from numpy.core.fromnumeric import shape
+from ruamel.yaml import YAML
 from stable_baselines3.common.running_mean_std import RunningMeanStd
 from stable_baselines3.common.vec_env.base_vec_env import (VecEnv,
                                                            VecEnvIndices,
@@ -228,6 +229,30 @@ class FlightEnvVec(VecEnv, ABC):
         self._quadact = np.zeros([self.num_envs, 4], dtype=np.float64)
         self._flightmodes = np.zeros([self.num_envs, 1], dtype=np.float64)
 
+        ######################################################
+        # Gym spaces of the environment (the actual dimensions for this environment's obs and action)
+        ######################################################
+        depth_space = spaces.Box(
+            low=0, high=1,
+            shape=(1, self.img_height, self.img_width), dtype=np.float64
+        )
+
+        rgb_space = spaces.Box(
+            low=0, high=1,
+            shape=(3, self.img_height, self.img_width), dtype=np.float64
+        )
+        drone_state_space = spaces.Box(
+            low=-np.Inf, high=np.Inf,
+            shape=(13,), dtype=np.float64
+        )
+        combined_space = spaces.Dict(
+            spaces={
+                "drone_state": drone_state_space,
+                "depth": depth_space,
+                "rgb": rgb_space
+            }
+        )
+        # self.observation_space = gym.spaces.Dict(combined_space)
         #  state normalization
         self.obs_rms = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
         self.obs_rms_new = RunningMeanStd(shape=[self.num_envs, self.obs_dim])
@@ -260,17 +285,19 @@ class FlightEnvVec(VecEnv, ABC):
             sys.exit(1)
 
     def kill_flightmare(self):
-        os.killpg(os.getpgid(self._flightmare_process.pid), signal.SIGTERM)
-        self._flightmare_process = None
+        if self.mode != "obs":
+            os.killpg(os.getpgid(self._flightmare_process.pid), signal.SIGTERM)
+            self._flightmare_process = None
 
     def change_obstacles(self, seed=0, difficult="medium", level=0, random=False):
         # TODO Random not yet implemented
 
         self.close()
-
+        self.kill_flightmare()
         if 'obs' != self.mode:
+            self.spawn_flightmare(self.in_port, self.out_port)
             self.kill_flightmare()
-            self.spawn_flightmare()
+            self.spawn_flightmare(self.in_port, self.out_port)
         print("ENV-CHANGED")
         self.env_cfg["environment"]["level"] = difficult
         self.env_cfg["environment"]["env_folder"] = "environment_" + str(level)
