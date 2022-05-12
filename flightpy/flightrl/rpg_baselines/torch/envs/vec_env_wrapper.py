@@ -271,7 +271,7 @@ class FlightEnvVec(VecEnv, ABC):
         if 'obs' != self.mode:
             self.kill_flightmare()
             self.spawn_flightmare()
-
+        print("ENV-CHANGED")
         self.env_cfg["environment"]["level"] = difficult
         self.env_cfg["environment"]["env_folder"] = "environment_" + str(level)
 
@@ -328,41 +328,46 @@ class FlightEnvVec(VecEnv, ABC):
         self.obs_rms_new.update(self._observation)
         obs = self.normalize_obs(self._observation)
 
+        if len(self._extraInfoNames) != 0:
+            info = [
+                {
+                    "extra_info": {
+                        self._extraInfoNames[j]: self._extraInfo[i, j]
+                        for j in range(0, len(self._extraInfoNames))
+                    }
+                }
+                for i in range(self.num_envs)
+            ]
+        else:
+            info = [{} for i in range(self.num_envs)]
+
+        for i in range(self.num_envs):
+            self.rewards[i].append(self._reward_components[i, -1])
+            for j in range(self.rew_dim - 1):
+                self.sum_reward_components[i, j] += self._reward_components[i, j]
+            if self._done[i]:
+                eprew = sum(self.rewards[i])
+                eplen = len(self.rewards[i])
+                epinfo = {"r": eprew, "l": eplen}
+                for j in range(self.rew_dim - 1):
+                    epinfo[self.reward_names[j]] = self.sum_reward_components[i, j]
+                    self.sum_reward_components[i, j] = 0.0
+                info[i]["episode"] = epinfo
+                self.rewards[i].clear()
+
         logging.info("." + self.name)
-        if self.is_unity_connected and 'obs' != self.mode:
+        if self.is_unity_connected:
             self.render_id = self.render(
                 self.render_id)  # TODO INCREASE RENDER ID IT IS REALLY NECESSARY TO DO RENDER ID +1
-
-        logging.info(self.getImage(True))
-
+            logging.info(self.getImage(True))
         new_obs = self.getObs()
-        info = self.getReward()
 
         return (
             new_obs,
-            self.totalReward.copy(),
+            self._reward_components[:, -1].copy(),
             self._done.copy(),
             info.copy(),
         )
-
-    def getReward(self):
-        info = [{} for i in range(self.num_envs)]
-        for i in range(self.num_envs):
-            if self._done[i]:
-                if self.maxPos[i] > self.GOAL_MAX:
-                    self.myReward[i] = 10
-                else:
-                    self.myReward[i] = -1.0
-                eprew = self.totalReward[i] + self.myReward[i]
-                info[i]["episode"] = {"r": eprew, "l": 1}
-                self.totalReward[i] = 0
-            else:
-                step = self._quadstate[i][1] - self.maxPos[i]
-                self.myReward[i] = step if step > 0 else 0
-                if self._quadstate[i][0] > self.maxPos[i]:
-                    self.maxPos[i] = self._quadstate[i][1]
-                self.totalReward[i] += self.myReward[i]
-        return info
 
     def sample_actions(self):
         actions = []
