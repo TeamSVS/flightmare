@@ -103,7 +103,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.name = name
         self.n_frames = n_frames
         self.env_cfg = env_cfg
-        self.mode = "obs"  # rgb, depth, both,obs
+        self.mode = mode  # rgb, depth, both,obs
         self.stopFlag = Event()
         self.thread = PingThread(self.stopFlag, self)
         if in_port == 0 or out_port == 0:
@@ -241,7 +241,7 @@ class FlightEnvVec(VecEnv, ABC):
         if seed != 0:
             self.seed_val = seed
 
-        self.wrapper.setSeed(42)
+        self.wrapper.setSeed(self.seed_val)
 
     def spawn_flightmare(self, input_port=10277, output_port=10278):
         if input_port > 0 and output_port > 0:
@@ -333,8 +333,6 @@ class FlightEnvVec(VecEnv, ABC):
             self.render_id = self.render(
                 self.render_id)  # TODO INCREASE RENDER ID IT IS REALLY NECESSARY TO DO RENDER ID +1
 
-
-
         logging.info(self.getImage(True))
 
         new_obs = self.getObs()
@@ -342,9 +340,9 @@ class FlightEnvVec(VecEnv, ABC):
 
         return (
             new_obs,
-            self.totalReward.copy()[0],
-            self._done.copy()[0],
-            info.copy()[0],
+            self.totalReward.copy(),
+            self._done.copy(),
+            info.copy(),
         )
 
     def getReward(self):
@@ -355,9 +353,9 @@ class FlightEnvVec(VecEnv, ABC):
                     self.myReward[i] = 10
                 else:
                     self.myReward[i] = -1.0
-                eprew = self.totalReward[i]+self.myReward[i]
-                info[i]["episode"] = {"r": eprew, "l":1}
-                self.totalReward[i]=0
+                eprew = self.totalReward[i] + self.myReward[i]
+                info[i]["episode"] = {"r": eprew, "l": 1}
+                self.totalReward[i] = 0
             else:
                 step = self._quadstate[i][1] - self.maxPos[i]
                 self.myReward[i] = step if step > 0 else 0
