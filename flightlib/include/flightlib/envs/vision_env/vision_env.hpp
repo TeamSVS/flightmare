@@ -22,6 +22,8 @@
 #include "flightlib/objects/unity_object.hpp"
 #include "flightlib/sensors/rgb_camera.hpp"
 
+
+
 namespace flightlib {
 
 namespace visionenv {
@@ -127,9 +129,15 @@ class VisionEnv final : public EnvBase {
   Logger logger_{"VisionEnv"};
 
   // Define reward for training
-  Scalar vel_coeff_, collision_coeff_, angular_vel_coeff_, survive_rew_;
+  Scalar vel_coeff_, collision_coeff_, angular_vel_coeff_, survive_rew_, goal_dist_rew_, attitude_ori_coeff_;
+  std::string drone_orientation_;
   Vector<3> goal_linear_vel_;
+  Vector<3> goal_pos_;
+  Vector<3> max_dist_;
+  Vector<4> ref_qx_;
   bool is_collision_;
+  int num_collision;
+  Scalar xMax;
 
   // max detection range (meter)
   Scalar max_detection_range_;
