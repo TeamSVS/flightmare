@@ -45,10 +45,6 @@ bool UnityBridge::initializeConnections() {
   // pub_.set(zmqpp::socket_option::heartbeat_interval, 1000);
 
 
-  int tcp_keepalive, tcp_keepalive_idle, tcp_keepalive_count,
-    tcp_keepalive_interval;
-  int ipv4_only, file_descriptor;
-
   // pub_.set(zmqpp::socket_option::tcp_keepalive, -1);
   // pub_.set(zmqpp::socket_option::tcp_keepalive_idle, 1);
   // pub_.set(zmqpp::socket_option::tcp_keepalive_count, 150);
@@ -235,10 +231,7 @@ void UnityBridge::setRenderOffset(const Ref<Vector<3>> render_offset) {
 }
 
 bool UnityBridge::setObjectCSV(const std::string& csv_file) {
-  if (!(file_exists(csv_file))) {
-    logger_.error("Configuration file %s does not exists.", csv_file);
-    return false;
-  }
+
   // logger_.info("Scene ID is set to %d.", scene_id);
   settings_.object_csv = csv_file;
   return true;

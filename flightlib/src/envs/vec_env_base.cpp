@@ -34,9 +34,8 @@ void VecEnvBase<EnvBaseName>::configEnv(const YAML::Node& cfg_node) {
     seed_ = cfg_node["simulation"]["seed"].as<int>();
     num_envs_ = cfg_node["simulation"]["num_envs"].as<int>();
     num_threads_ = cfg_node["simulation"]["num_threads"].as<int>();
-    fakeQuadrotorScale_ = cfg_node["simulation"]["fakeQuadrotorScaleSize"].as<float>();
-
-    
+    fakeQuadrotorScale_ =
+      cfg_node["simulation"]["fakeQuadrotorScaleSize"].as<float>();
   }
 
   // set threads
@@ -150,7 +149,7 @@ void VecEnvBase<EnvBaseName>::setSeed(const int seed) {
 
 template<typename EnvBaseName>
 void VecEnvBase<EnvBaseName>::setFakeQuadrotorScale(const float scale) {
-  int fakeQuadrotorScale_ = scale;
+  fakeQuadrotorScale_ = scale;
 }
 
 template<typename EnvBaseName>
@@ -218,7 +217,8 @@ void VecEnvBase<EnvBaseName>::perAgentStep(int agent_id,
 
 
 template<typename EnvBaseName>
-bool VecEnvBase<EnvBaseName>::setUnity(bool render, const int input_port, const int output_port)  {
+bool VecEnvBase<EnvBaseName>::setUnity(bool render, const int input_port,
+                                       const int output_port) {
   unity_render_ = render;
   if (!unity_render_ || unity_bridge_ptr_ != nullptr) {
     logger_.warn(
@@ -264,8 +264,8 @@ void VecEnvBase<EnvBaseName>::isTerminalState(
   Ref<BoolVector<>> terminal_state) {}
 
 template<typename EnvBaseName>
-void VecEnvBase<EnvBaseName>::sendUnityPing(void){
-    if (unity_bridge_ptr_ == nullptr){
+void VecEnvBase<EnvBaseName>::sendUnityPing(void) {
+  if (unity_bridge_ptr_ == nullptr) {
     return;
   }
   return unity_bridge_ptr_->sendPing();
@@ -281,7 +281,6 @@ void VecEnvBase<EnvBaseName>::disconnectUnity(void) {
     logger_.warn("Flightmare Unity Bridge is not initialized.");
   }
 }
-
 
 
 template<typename EnvBaseName>
