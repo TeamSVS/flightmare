@@ -44,6 +44,7 @@ HEARTBEAT_INTERVAL = 4
 FLIGHTMAER_NEXT_FOLDER = "/flightrender/"
 DISCRETE_ACTION_SPACE = [3, 20, 20, 3]
 
+
 ######################################
 ############--FUNCTIONS--#############
 ######################################
@@ -96,7 +97,7 @@ class PingThread(Thread):
 
 class FlightEnvVec(VecEnv, ABC):
     def __init__(self, env_cfg, name, mode, n_frames=3, in_port=0, out_port=0, camera_dir=[0.0, 0.0, -90],
-                 is_discrete=False, evaluation=False):
+                 is_discrete=True, evaluation=False):
         self.env_cfg = env_cfg
         self.eval = evaluation
         self.is_discrete = is_discrete
@@ -350,14 +351,16 @@ class FlightEnvVec(VecEnv, ABC):
         return frame_list
 
     def step(self, action):  # action 0-99
+        new_actions = []
         if self.is_discrete:
+            new_actions = np.zeros((action.shape[0], action.shape[1]))
             for drone in range(action.shape[0]):  # for each drone
-                for i in range(4):
-                    action[drone][i] = 2*action[drone][i]/DISCRETE_ACTION_SPACE[i]-1
+                for i in range(action.shape[1]):
+                    new_actions[drone][i] = 2 * action[drone][i] / DISCRETE_ACTION_SPACE[i] - 1
         if action.ndim <= 1:
             action = action.reshape((-1, self.act_dim))
         self.wrapper.step(
-            action,
+            new_actions,
             self._observation,
             self._reward_components,
             self._done,
