@@ -97,6 +97,7 @@ class PingThread(Thread):
 class FlightEnvVec(VecEnv, ABC):
     def __init__(self, env_cfg, name, mode, n_frames=3, in_port=0, out_port=0, camera_dir=[0.0, 0.0, -90]):
         self.env_cfg = env_cfg
+        self.is_discrete = True
         self._flightmare_process = None
         self.render_id = 0
         self.stacked_drone_state = []
@@ -106,7 +107,6 @@ class FlightEnvVec(VecEnv, ABC):
         self.camera_dir = camera_dir
         self.env_cfg["rgb_camera"]["r_BC"] = camera_dir
         self.n_frames = n_frames
-
         self.mode = mode  # rgb, depth, both,obs
         self.stopFlag = Event()
         self.thread = PingThread(self.stopFlag, self)
@@ -195,11 +195,16 @@ class FlightEnvVec(VecEnv, ABC):
         ###########################################
         ###############--ACT-SPACE--###############
         ###########################################
-        self._action_space = spaces.Box(
+        if(self.is_discrete):
+            self._action_space = spaces.MultiDiscrete([100, 100, 100, 100])
+        else:
+            self._action_space = spaces.Box(
             low=np.ones(self.act_dim) * -1.0,
             high=np.ones(self.act_dim) * 1.0,
             dtype=np.float64,
         )
+
+
 
         self._observation = np.zeros([self.num_envs, self.obs_dim], dtype=np.float64)
 
@@ -343,7 +348,8 @@ class FlightEnvVec(VecEnv, ABC):
             frame_list.insert(0, new_frame)
         return frame_list
 
-    def step(self, action):
+    def step(self, action): #action 0-99
+
         if action.ndim <= 1:
             action = action.reshape((-1, self.act_dim))
         self.wrapper.step(
