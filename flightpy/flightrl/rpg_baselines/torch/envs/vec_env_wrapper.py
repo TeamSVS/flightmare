@@ -309,6 +309,7 @@ class FlightEnvVec(VecEnv, ABC):
             self.kill_flightmare()
             self.spawn_flightmare(self.in_port, self.out_port)
         print("ENV-CHANGED")
+
         self.env_cfg["environment"]["level"] = difficult
         self.env_cfg["environment"]["env_folder"] = "environment_" + str(level)
 
@@ -386,6 +387,7 @@ class FlightEnvVec(VecEnv, ABC):
 
         for i in range(self.num_envs):
             self.rewards[i].append(self._reward_components[i, -1])
+            print(self._reward_components[i, -1])
             for j in range(self.rew_dim - 1):
                 self.sum_reward_components[i, j] += self._reward_components[i, j]
             if self._done[i]:
