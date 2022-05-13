@@ -327,14 +327,14 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   const Scalar velocityY =quad_state_.x(QS::VELY);
   const Scalar velocityZ =quad_state_.x(QS::VELZ);
 
-  const Scalar velX = abs(velocityX);
+  const Scalar velX = velocityX > 0 ? abs(velocityX) : 0;
 
   logger_.error( to_string(velocityX) + " " + to_string(velocityY) + " " +  to_string(velocityZ) );
   //logger_.error( to_string(positionX) + " " + to_string(positionY) + " " +  to_string(positionZ) );
   //logger_.error( to_string(quad_state_.p.norm()) );
   //logger_.error( to_string(quad_state_.p[0]) + " " + to_string(quad_state_.p[1]) + " " +  to_string(quad_state_.p[2]) );
 
-    Scalar dist_reward = sqrt(velX + 1) * (1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
+    Scalar dist_reward = sqrt(velX) * (1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
 
    Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
 
@@ -367,7 +367,7 @@ Eigen::Vector3d camera_dir =  rot_mat * origin;
 //Scalar attitude_reward = attitude_ori_coeff_ * tanh(2.2 * drone_dir.dot(camera_dir));
 Scalar attitude_reward = 0.6 * log(velX + 1) * tanh(1.1 * drone_dir.dot(camera_dir));
 
-logger_.warn( to_string( drone_dir.dot(camera_dir) ));
+//logger_.warn( to_string( drone_dir.dot(camera_dir) ));
 
 
  // get N most closest obstacles as the observation
@@ -399,9 +399,11 @@ logger_.warn( to_string( drone_dir.dot(camera_dir) ));
           //   collision_penalty = -1;
           //collision_penalty -= 1/(0.1 * pow(obstacle_dis, 8) + 1);
           collision_penalty -= 1/( 1/velX * pow(obstacle_dis, 5) + 1);
+
       }
       //collision_penalty *= collision_coeff_;
-
+      if(collision_penalty != collision_penalty || collision_penalty < -1)
+        collision_penalty = -1;
     //  if(theta != theta || alpha != alpha)
       //logger_.warn(  to_string(i) + " " +  to_string(theta) + " " + to_string(alpha) );
   }
