@@ -1,6 +1,7 @@
 
 #include "flightlib/envs/vision_env/vision_env.hpp"
 
+#include <string>
 namespace flightlib {
 
 VisionEnv::VisionEnv()
@@ -81,10 +82,20 @@ void VisionEnv::init() {
   // use single rotor control or bodyrate control
   Scalar max_force = quad_ptr_->getDynamics().getForceMax();
   Vector<3> max_omega = quad_ptr_->getDynamics().getOmegaMax();
-  //
-  act_mean_ << (max_force / quad_ptr_->getMass()) / 2, 0.0, 0.0, 0.0;
-  act_std_ << (max_force / quad_ptr_->getMass()) / 2, max_omega.x(),
-    max_omega.y(), max_omega.z();
+  if (guide_mode_ != quadcmd::SINGLEROTOR) {
+    act_mean_ << (max_force / quad_ptr_->getMass()) / 2, 0.0, 0.0, 0.0;
+    act_std_ << (max_force / quad_ptr_->getMass()) / 2, max_omega.x(),
+      max_omega.y(), max_omega.z();
+  } else {
+    act_mean_ << (max_force / quad_ptr_->getMass()) / 2,
+      (max_force / quad_ptr_->getMass()) / 2,
+      (max_force / quad_ptr_->getMass()) / 2,
+      (max_force / quad_ptr_->getMass()) / 2;
+    act_std_ << (max_force / quad_ptr_->getMass()) / 2,
+      (max_force / quad_ptr_->getMass()) / 2,
+      (max_force / quad_ptr_->getMass()) / 2,
+      (max_force / quad_ptr_->getMass()) / 2;
+  }
 }
 
 VisionEnv::~VisionEnv() {}
@@ -113,8 +124,11 @@ bool VisionEnv::reset(Ref<Vector<>> obs) {
   // reset control command
   cmd_.t = 0.0;
   // use collective thrust and bodyrate control mode
-  cmd_.setCmdMode(quadcmd::THRUSTRATE);  // TODO
-  cmd_.setCmdMode(quadcmd::THRUSTRATE);
+  if (guide_mode_ == quadcmd::SINGLEROTOR) {
+    cmd_.setCmdMode(quadcmd::SINGLEROTOR);
+  } else {
+    cmd_.setCmdMode(quadcmd::THRUSTRATE);
+  }
   cmd_.collective_thrust = 0;
   cmd_.omega.setZero();
 
@@ -253,18 +267,19 @@ bool VisionEnv::step(const Ref<Vector<>> act, Ref<Vector<>> obs,
   // compute actual control actions
   // act has range between [-1, 1] due to Tanh layer of the NN policy
   pi_act_ = act.cwiseProduct(act_std_) + act_mean_;
-
-
-  cmd_.setCmdVector(
-    Vector<4>(pi_act_(0) / 4, pi_act_(1) / 4, pi_act_(2) / 4, pi_act_(3) / 4));
-
-
   cmd_.t += sim_dt_;
   quad_state_.t += sim_dt_;
 
-  // apply old actions to simulate delay
-  cmd_.collective_thrust = old_pi_act_(0);
-  cmd_.omega = old_pi_act_.segment<3>(1);
+
+  if (guide_mode_ == quadcmd::SINGLEROTOR) {
+    cmd_.setCmdVector(Vector<4>(pi_act_(0) / 4, pi_act_(1) / 4, pi_act_(2) / 4,
+                                pi_act_(3) / 4));
+  } else {
+    // apply old actions to simulate delay
+    cmd_.collective_thrust = old_pi_act_(0);
+    cmd_.omega = old_pi_act_.segment<3>(1);
+  }
+
 
   // simulate quadrotor
   quad_ptr_->run(cmd_, sim_dt_);
@@ -482,7 +497,6 @@ bool VisionEnv::loadParam(const YAML::Node &cfg) {
 
   if (cfg["command"]) {
     guide_mode_ = cfg["command"]["guide_mode"].as<Scalar>();
-    discrete_guide_ = cfg["command"]["max_t"].as<Scalar>();
   } else {
     logger_.error("Cannot load [command] parameters");
     return false;

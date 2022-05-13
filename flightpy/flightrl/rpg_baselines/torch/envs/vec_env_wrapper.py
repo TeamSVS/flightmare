@@ -95,9 +95,11 @@ class PingThread(Thread):
 
 
 class FlightEnvVec(VecEnv, ABC):
-    def __init__(self, env_cfg, name, mode, n_frames=3, in_port=0, out_port=0, camera_dir=[0.0, 0.0, -90]):
+    def __init__(self, env_cfg, name, mode, n_frames=3, in_port=0, out_port=0, camera_dir=[0.0, 0.0, -90],
+                 is_discrete=True):
         self.env_cfg = env_cfg
         self.is_discrete = True
+        self.is_discrete = is_discrete
         self._flightmare_process = None
         self.render_id = 0
         self.stacked_drone_state = []
@@ -195,16 +197,14 @@ class FlightEnvVec(VecEnv, ABC):
         ###########################################
         ###############--ACT-SPACE--###############
         ###########################################
-        if(self.is_discrete):
+        if self.is_discrete:
             self._action_space = spaces.MultiDiscrete([100, 100, 100, 100])
         else:
             self._action_space = spaces.Box(
-            low=np.ones(self.act_dim) * -1.0,
-            high=np.ones(self.act_dim) * 1.0,
-            dtype=np.float64,
-        )
-
-
+                low=np.ones(self.act_dim) * -1.0,
+                high=np.ones(self.act_dim) * 1.0,
+                dtype=np.float64,
+            )
 
         self._observation = np.zeros([self.num_envs, self.obs_dim], dtype=np.float64)
 
@@ -271,6 +271,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.GOAL_MAX = 60
 
     def seed(self, seed=0):
+
         if seed != 0:
             self.seed_val = seed
 
@@ -348,8 +349,9 @@ class FlightEnvVec(VecEnv, ABC):
             frame_list.insert(0, new_frame)
         return frame_list
 
-    def step(self, action): #action 0-99
-
+    def step(self, action):  # action 0-99
+        if self.is_discrete:
+            pass
         if action.ndim <= 1:
             action = action.reshape((-1, self.act_dim))
         self.wrapper.step(

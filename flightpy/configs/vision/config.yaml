@@ -20,8 +20,8 @@ rewards:
     ]
 
 command:
-  guide_mode:
-  discrete:
+  guide_mode: 1 #  SINGLEROTOR = 0,THRUSTRATE = 1,
+  discrete_action: yes # no, continue, yes, dicrete
 
 
 rgb_camera:

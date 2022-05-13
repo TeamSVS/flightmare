@@ -75,8 +75,7 @@ class EnvBase {
   // control time step
   Scalar sim_dt_;
   Scalar max_t_;
-  Scalar max_t_;
-  Scalar max_t_;
+  Scalar guide_mode_;
 
 
   // random variable generator
