@@ -38,7 +38,7 @@ RGB_CHANNELS = 3
 HEARTBEAT_INTERVAL = 4
 FLIGHTMAER_NEXT_FOLDER = "/flightrender/"
 ALLOWED_USER_KILLER = ["giuseppe", "cam", "sara", "zaks", "students"]
-
+SAFETY_MARGIN = 30
 
 ######################################
 ############--FUNCTIONS--#############
@@ -209,6 +209,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.totalReward = np.zeros([self.num_envs], dtype=np.float64)
         self.GOAL_MAX = 60
 
+
     def seed(self, seed=0):
         if seed != 0:
             self.seed_val = seed
@@ -322,8 +323,13 @@ class FlightEnvVec(VecEnv, ABC):
                 info[i]["episode"] = {"r": eprew, "l":1}
                 self.totalReward[i]=0
             else:
+                distance_closer_obstacle = np.min(
+                    self._depth_img_obs[i].reshape((self.img_height, self.img_width))[
+                    SAFETY_MARGIN:self.img_height - SAFETY_MARGIN, SAFETY_MARGIN:self.img_width - SAFETY_MARGIN
+                    ])
+                safety_reward = distance_closer_obstacle
                 step = self._quadstate[i][1] - self.maxPos[i]
-                self.myReward[i] = step if step > 0 else 0
+                self.myReward[i] = (step if step > 0 else 0)+safety_reward
                 if self._quadstate[i][0] > self.maxPos[i]:
                     self.maxPos[i] = self._quadstate[i][1]
                 self.totalReward[i] += self.myReward[i]
