@@ -42,6 +42,7 @@ DEPTH_CHANNELS = 1
 RGB_CHANNELS = 3
 HEARTBEAT_INTERVAL = 4
 FLIGHTMAER_NEXT_FOLDER = "/flightrender/"
+DISCRETE_ACTION_SPACE = [100, 100, 100, 100]
 
 
 ######################################
@@ -198,7 +199,7 @@ class FlightEnvVec(VecEnv, ABC):
         ###############--ACT-SPACE--###############
         ###########################################
         if self.is_discrete:
-            self._action_space = spaces.MultiDiscrete([100, 100, 100, 100])
+            self._action_space = spaces.MultiDiscrete(DISCRETE_ACTION_SPACE)
         else:
             self._action_space = spaces.Box(
                 low=np.ones(self.act_dim) * -1.0,
