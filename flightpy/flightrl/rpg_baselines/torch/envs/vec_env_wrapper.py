@@ -42,8 +42,7 @@ DEPTH_CHANNELS = 1
 RGB_CHANNELS = 3
 HEARTBEAT_INTERVAL = 4
 FLIGHTMAER_NEXT_FOLDER = "/flightrender/"
-DISCRETE_ACTION_SPACE = [100, 100, 100, 100]
-
+DISCRETE_ACTION_SPACE = [3, 20, 20, 3]
 
 ######################################
 ############--FUNCTIONS--#############
@@ -352,7 +351,9 @@ class FlightEnvVec(VecEnv, ABC):
 
     def step(self, action):  # action 0-99
         if self.is_discrete:
-            pass
+            for drone in range(action.shape[0]):  # for each drone
+                for i in range(4):
+                    action[drone][i] = 2*action[drone][i]/DISCRETE_ACTION_SPACE[i]-1
         if action.ndim <= 1:
             action = action.reshape((-1, self.act_dim))
         self.wrapper.step(
