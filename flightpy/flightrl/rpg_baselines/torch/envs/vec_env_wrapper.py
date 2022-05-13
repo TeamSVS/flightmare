@@ -95,15 +95,18 @@ class PingThread(Thread):
 
 
 class FlightEnvVec(VecEnv, ABC):
-    def __init__(self, env_cfg, name, mode, n_frames=3, in_port=0, out_port=0):
+    def __init__(self, env_cfg, name, mode, n_frames=3, in_port=0, out_port=0, camera_dir=[0.0, 0.0, -90]):
+        self.env_cfg = env_cfg
         self._flightmare_process = None
         self.render_id = 0
         self.stacked_drone_state = []
         self.stacked_depth_imgs = []
         self.stacked_rgb_imgs = []
         self.name = name
+        self.camera_dir = camera_dir
+        self.env_cfg["rgb_camera"]["r_BC"] = camera_dir
         self.n_frames = n_frames
-        self.env_cfg = env_cfg
+
         self.mode = mode  # rgb, depth, both,obs
         self.stopFlag = Event()
         self.thread = PingThread(self.stopFlag, self)

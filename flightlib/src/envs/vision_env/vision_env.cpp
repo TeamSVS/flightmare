@@ -107,13 +107,13 @@ bool VisionEnv::reset(Ref<Vector<>> obs) {
   std::cout << "Starting Drone Z:" << quad_state_.p(QS::POSZ) << "\n";
 
 
-
   // reset quadrotor with random states
   quad_ptr_->reset(quad_state_);
 
   // reset control command
   cmd_.t = 0.0;
   // use collective thrust and bodyrate control mode
+  cmd_.setCmdMode(quadcmd::THRUSTRATE);  // TODO
   cmd_.setCmdMode(quadcmd::THRUSTRATE);
   cmd_.collective_thrust = 0;
   cmd_.omega.setZero();
@@ -254,6 +254,11 @@ bool VisionEnv::step(const Ref<Vector<>> act, Ref<Vector<>> obs,
   // act has range between [-1, 1] due to Tanh layer of the NN policy
   pi_act_ = act.cwiseProduct(act_std_) + act_mean_;
 
+
+  cmd_.setCmdVector(
+    Vector<4>(pi_act_(0) / 4, pi_act_(1) / 4, pi_act_(2) / 4, pi_act_(3) / 4));
+
+
   cmd_.t += sim_dt_;
   quad_state_.t += sim_dt_;
 
@@ -333,9 +338,9 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
 
 bool VisionEnv::isTerminalState(Scalar &reward) {
   if (is_collision_) {
-      reward = -1.0;
-      std::cout << "Collision!\n";
-      return true;
+    reward = -1.0;
+    std::cout << "Collision!\n";
+    return true;
   }
 
   // simulation time out
@@ -354,24 +359,30 @@ bool VisionEnv::isTerminalState(Scalar &reward) {
                  quad_state_.p(QS::POSY) <= world_box_[3] - safty_threshold;
   bool z_valid = quad_state_.x(QS::POSZ) >= world_box_[4] + safty_threshold &&
                  quad_state_.x(QS::POSZ) <= world_box_[5] - safty_threshold;
- if (!x_valid || !y_valid || !z_valid) {
+  if (!x_valid || !y_valid || !z_valid) {
     std::cout << "Drone X:" << quad_state_.p(QS::POSX) << "\n";
     std::cout << "Drone Y:" << quad_state_.p(QS::POSY) << "\n";
     std::cout << "Drone Z:" << quad_state_.p(QS::POSZ) << "\n";
 
-    if(!x_valid){
-      std::cout << "Drone X " << quad_state_.p(QS::POSX) << " >= " << world_box_[0] + safty_threshold << " ?\n";
-      std::cout << "Drone X " << quad_state_.p(QS::POSX) << " <= " << world_box_[1] - safty_threshold << " ?\n";
+    if (!x_valid) {
+      std::cout << "Drone X " << quad_state_.p(QS::POSX)
+                << " >= " << world_box_[0] + safty_threshold << " ?\n";
+      std::cout << "Drone X " << quad_state_.p(QS::POSX)
+                << " <= " << world_box_[1] - safty_threshold << " ?\n";
     }
 
-    if(!y_valid){
-      std::cout << "Drone Y " << quad_state_.p(QS::POSY) << " >= " << world_box_[2] + safty_threshold << " ?\n";
-      std::cout << "Drone Y " << quad_state_.p(QS::POSY) << " <= " << world_box_[3] - safty_threshold << " ?\n";
+    if (!y_valid) {
+      std::cout << "Drone Y " << quad_state_.p(QS::POSY)
+                << " >= " << world_box_[2] + safty_threshold << " ?\n";
+      std::cout << "Drone Y " << quad_state_.p(QS::POSY)
+                << " <= " << world_box_[3] - safty_threshold << " ?\n";
     }
 
-    if(!z_valid){
-      std::cout << "Drone Z " << quad_state_.p(QS::POSZ) << " >= " << world_box_[4] + safty_threshold << " ?\n";
-      std::cout << "Drone Z " << quad_state_.p(QS::POSZ) << " <= " << world_box_[5] - safty_threshold << " ?\n";
+    if (!z_valid) {
+      std::cout << "Drone Z " << quad_state_.p(QS::POSZ)
+                << " >= " << world_box_[4] + safty_threshold << " ?\n";
+      std::cout << "Drone Z " << quad_state_.p(QS::POSZ)
+                << " <= " << world_box_[5] - safty_threshold << " ?\n";
     }
 
     std::cout << "XYZ not valid\n";
@@ -465,6 +476,15 @@ bool VisionEnv::loadParam(const YAML::Node &cfg) {
 
   } else {
     logger_.error("Cannot load [quadrotor_env] parameters");
+    return false;
+  }
+
+
+  if (cfg["command"]) {
+    guide_mode_ = cfg["command"]["guide_mode"].as<Scalar>();
+    discrete_guide_ = cfg["command"]["max_t"].as<Scalar>();
+  } else {
+    logger_.error("Cannot load [command] parameters");
     return false;
   }
 
@@ -654,11 +674,10 @@ bool VisionEnv::addQuadrotorToUnity(const std::shared_ptr<UnityBridge> bridge) {
   return true;
 }
 
-void VisionEnv::setFakeQuadrotorScale(float scale){
-  quadrotorScale_ = scale;
-}
+void VisionEnv::setFakeQuadrotorScale(float scale) { quadrotorScale_ = scale; }
 
-bool VisionEnv::setUnity(bool render, const int input_port, const int output_port) {
+bool VisionEnv::setUnity(bool render, const int input_port,
+                         const int output_port) {
   unity_render_ = render;
   if (!unity_render_ || unity_bridge_ptr_ != nullptr) {
     logger_.warn(
