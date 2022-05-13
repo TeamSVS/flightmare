@@ -97,9 +97,9 @@ class PingThread(Thread):
 
 class FlightEnvVec(VecEnv, ABC):
     def __init__(self, env_cfg, name, mode, n_frames=3, in_port=0, out_port=0, camera_dir=[0.0, 0.0, -90],
-                 is_discrete=True):
+                 is_discrete=False, evaluation=False):
         self.env_cfg = env_cfg
-        self.is_discrete = True
+        self.eval = evaluation
         self.is_discrete = is_discrete
         self._flightmare_process = None
         self.render_id = 0
@@ -110,7 +110,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.camera_dir = camera_dir
         self.env_cfg["rgb_camera"]["r_BC"] = camera_dir
         self.n_frames = n_frames
-        self.mode = mode  # rgb, depth, both,obs
+        self.mode = mode  # rgb, depth, both,obs,
         self.stopFlag = Event()
         self.thread = PingThread(self.stopFlag, self)
         if in_port == 0 or out_port == 0:
@@ -122,12 +122,12 @@ class FlightEnvVec(VecEnv, ABC):
             env_cfg["unity"]["input_port"] = in_port
             env_cfg["unity"]["output_port"] = out_port
 
-        if 'obs' == self.mode:
-            self.env_cfg["unity"]["render"] = "no"
-        else:
+        if 'obs' != self.mode or self.eval:
             self.spawn_flightmare(self.in_port, self.out_port)
             self.env_cfg["rgb_camera"]["on"] = "yes"
             self.env_cfg["unity"]["render"] = "yes"
+        else:
+            self.env_cfg["unity"]["render"] = "no"
 
         self.wrapper = VisionEnv_v1(dump(self.env_cfg, Dumper=RoundTripDumper), False)
         self.is_unity_connected = False
@@ -138,7 +138,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.seed_val = 0
         self._heartbeat = True if env_cfg["simulation"]["heartbeat"] == "yes" else False
 
-        if self._heartbeat and 'obs' != self.mode:
+        if self._heartbeat and ('obs' != self.mode or self.eval):
             self.thread.daemon = True
             self.thread.start()
 
@@ -304,7 +304,7 @@ class FlightEnvVec(VecEnv, ABC):
 
         self.close()
         self.kill_flightmare()
-        if 'obs' != self.mode:
+        if 'obs' != self.mode or self.eval:
             self.spawn_flightmare(self.in_port, self.out_port)
             self.kill_flightmare()
             self.spawn_flightmare(self.in_port, self.out_port)
@@ -319,7 +319,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.stopFlag.clear()
         self.seed(self.seed_val)
         # Require render cfg to be True
-        if 'obs' != self.mode:
+        if 'obs' != self.mode or self.eval:
             self.connectUnity()
         return self.reset(True)
 
@@ -560,7 +560,9 @@ class FlightEnvVec(VecEnv, ABC):
         return info
 
     def render(self, frame_id=0):
-        ret = self.wrapper.updateUnity(frame_id)
+        ret = frame_id
+        if self.is_unity_connected:
+            ret = self.wrapper.updateUnity(frame_id)
         return ret
 
     def close(self):

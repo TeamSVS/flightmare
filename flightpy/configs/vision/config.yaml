@@ -21,7 +21,7 @@ rewards:
 
 command:
   guide_mode: 1 #  SINGLEROTOR = 0,THRUSTRATE = 1,
-  discrete_action: yes # no, continue, yes, dicrete
+
 
 
 rgb_camera:
@@ -50,7 +50,7 @@ simulation:
   num_envs: 1
   num_threads: 10
   heartbeat: yes
-  fakeQuadrotorScaleSize: 0.001
+  fakeQuadrotorScaleSize: 1
 
 quadrotor_dynamics:
   mass: 0.752
