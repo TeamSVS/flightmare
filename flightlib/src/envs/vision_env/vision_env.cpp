@@ -252,13 +252,14 @@ bool VisionEnv::step(const Ref<Vector<>> act, Ref<Vector<>> obs,
       "actions.");
   }
 
-  //
+
   old_pi_act_ = pi_act_;
 
   // compute actual control actions
   // act has range between [-1, 1] due to Tanh layer of the NN policy
-  pi_act_ = act.cwiseProduct(act_std_) + act_mean_;
-
+  if(use_mpc_ != "yes"){
+    pi_act_ = act.cwiseProduct(act_std_) + act_mean_;
+  }
   cmd_.t += sim_dt_;
   quad_state_.t += sim_dt_;
 
@@ -310,33 +311,33 @@ static double getDistance(Vector<3> v1, Vector<3> v2){
   return sqrt(len);
 }
 
-static Scalar dotProduct(Vector<3> vect_A, Vector<3> vect_B)
-{
-
-    Scalar product = 0;
-    // Loop for calculate dot product
-    for (int i = 0; i < 3; i++)
-        product = product + vect_A[i] * vect_B[i];
-    return product;
-}
+// static Scalar dotProduct(Vector<3> vect_A, Vector<3> vect_B)
+// {
+//
+//     Scalar product = 0;
+//     // Loop for calculate dot product
+//     for (int i = 0; i < 3; i++)
+//         product = product + vect_A[i] * vect_B[i];
+//     return product;
+// }
 
 bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   // ---------------------- reward function design
 
   const Scalar velocityX =quad_state_.x(QS::VELX);
-  const Scalar velocityY =quad_state_.x(QS::VELY);
-  const Scalar velocityZ =quad_state_.x(QS::VELZ);
+  //const Scalar velocityY =quad_state_.x(QS::VELY);
+  //const Scalar velocityZ =quad_state_.x(QS::VELZ);
 
   const Scalar velX = velocityX > 0 ? abs(velocityX) : 0;
 
-  logger_.error( to_string(velocityX) + " " + to_string(velocityY) + " " +  to_string(velocityZ) );
+  //logger_.error( to_string(velocityX) + " " + to_string(velocityY) + " " +  to_string(velocityZ) );
   //logger_.error( to_string(positionX) + " " + to_string(positionY) + " " +  to_string(positionZ) );
   //logger_.error( to_string(quad_state_.p.norm()) );
   //logger_.error( to_string(quad_state_.p[0]) + " " + to_string(quad_state_.p[1]) + " " +  to_string(quad_state_.p[2]) );
 
     Scalar dist_reward = sqrt(velX) * (1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
 
-   Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
+   //Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
 
   // - angular velocity penalty, to avoid oscillations
 
@@ -449,8 +450,8 @@ Scalar attitude_reward = 0.6 * log(velX + 1) * tanh(1.1 * drone_dir.dot(camera_d
 
 bool VisionEnv::isTerminalState(Scalar &reward) {
 
- Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
- Scalar maxCollision = num_dynamic_objects_ + num_static_objects_;
+ //Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
+ //Scalar maxCollision = num_dynamic_objects_ + num_static_objects_;
 
   //collsion
   if (is_collision_) {
@@ -577,6 +578,7 @@ bool VisionEnv::loadParam(const YAML::Node &cfg) {
     max_detection_range_ =
       cfg["environment"]["max_detection_range"].as<Scalar>();
   }
+  use_mpc_ = cfg["environment"]["use_mpc"].as<std::string>();
 
   if (cfg["simulation"]) {
     sim_dt_ = cfg["simulation"]["sim_dt"].as<Scalar>();

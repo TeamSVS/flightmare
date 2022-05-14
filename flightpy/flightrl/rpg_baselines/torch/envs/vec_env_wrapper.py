@@ -33,6 +33,14 @@ from stable_baselines3.common.vec_env.base_vec_env import (VecEnv,
 from stable_baselines3.common.vec_env.util import (copy_obs_dict, dict_to_obs,
                                                    obs_space_info)
 
+#
+# import sys
+# sys.path.append('envtest/python/fuda_tomasso')
+
+import fuda_tomasso.FD
+import fuda_tomasso.next_target
+from fuda_tomasso.MPC2 import actual_mpc
+
 ######################################
 ##########--COSTANT VALUES--##########
 ######################################
@@ -192,11 +200,21 @@ class FlightEnvVec(VecEnv, ABC):
         ###########################################
         ###############--ACT-SPACE--###############
         ###########################################
-        self._action_space = spaces.Box(
-            low=np.ones(self.act_dim) * -1.0,
-            high=np.ones(self.act_dim) * 1.0,
-            dtype=np.float64,
-        )
+                #    self._action_space = spaces.Box(
+                #    low = np.int32(np.ones(2,dtype = np.int32) * 2),#int((-self.img_width)/2),
+                #    high = np.int32(np.ones(2, dtype = np.int32) * 5), #int(self.img_width/2),
+                #    dtype = np.int32,
+        if env_cfg["environment"]["use_mpc"]:
+            self._action_space = spaces.MultiDiscrete([self.img_width, self.img_height])
+        else:
+            self._action_space = spaces.Box(
+               low=np.ones(self.act_dim) * -1.0,
+               high=np.ones(self.act_dim) * 1.0,
+               dtype=np.float64,
+            )
+
+
+
 
         self._observation = np.zeros([self.num_envs, self.obs_dim], dtype=np.float64)
 
@@ -341,10 +359,29 @@ class FlightEnvVec(VecEnv, ABC):
         return frame_list
 
     def step(self, action):
-        if action.ndim <= 1:
-            action = action.reshape((-1, self.act_dim))
+
+        real_action = np.zeros((self.num_envs, 4))
+        if self.env_cfg["environment"]["use_mpc"]:
+            depths = self.getDepthImage().reshape((self.num_envs,self.img_height, self.img_width))
+
+            for i in range(self.num_envs):
+                x = action[i,0] - int(self.img_width/2) #width
+                y = action[i,1] - int(self.img_height/2)#height
+
+                z = depths[i][x][y] #self.getQuadState()[:, 1:4]
+                pos = self.getQuadState()[i][1:4]
+                vel = self.getQuadState()[i][8:11]
+                att = self.getQuadState()[i][4:8]
+                omega = self.getQuadState()[i][11:14]
+
+                # x, y = next_target(depth)
+                # x depth, y,z width height of image
+                 #x, y, z = mpc_step((action[0], action[1]))
+                real_action[i] = actual_mpc(z, x, y, pos, vel, att, omega)
+
+
         self.wrapper.step(
-            action,
+            real_action,
             self._observation,
             self._reward_components,
             self._done,
@@ -502,6 +539,10 @@ class FlightEnvVec(VecEnv, ABC):
         else:
             self.wrapper.getImage(self._gray_img_obs, False)
             return self._gray_img_obs.copy()
+
+    def getPixel(self,x,y):
+        img = getDepthImage()
+        return img[0][x][y]
 
     def getDepthImage(self):
         self.wrapper.getDepthImage(self._depth_img_obs)
