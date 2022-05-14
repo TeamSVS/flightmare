@@ -140,25 +140,6 @@ class FlightEnvVec(VecEnv, ABC):
         self.seed_val = 0
         self._heartbeat = True if env_cfg["simulation"]["heartbeat"] == "yes" else False
 
-<<<<<<< HEAD
-        if self._heartbeat and 'obs' != self.mode:
-            self.thread.daemon = True
-            self.thread.start()
-
-        self.obs_ranges_dic = {0: [0, 10],
-                               1: [-20, 80],
-                               2: [-10, 10],
-                               3: [0, 10],
-                               8: [-35, 50],
-                               9: [-35, 50],
-                               10: [-30, 30],
-                               11: [-10, 10],
-                               12: [-10, 10]}
-
-        if os.path.exists("NEW_VAL_NORMALIZATION.txt"):
-            with open('NEW_VAL_NORMALIZATION.txt') as json_file:
-                self.obs_ranges_dic = json.load(json_file)
-=======
         self.obs_ranges_dic = {0: [-10, 65],
                                1: [-10, 10],
                                2: [0, 10],
@@ -172,7 +153,6 @@ class FlightEnvVec(VecEnv, ABC):
         # if os.path.exists("NEW_VAL_NORMALIZATION.txt"):
         #    with open('NEW_VAL_NORMALIZATION.txt') as json_file:
         #        self.obs_ranges_dic = json.load(json_file)
->>>>>>> develop
 
         self.act_dim = self.wrapper.getActDim()
         self.obs_dim = self.wrapper.getObsDim()  # C++ obs shape
@@ -533,6 +513,7 @@ class FlightEnvVec(VecEnv, ABC):
                 np.reshape(self.getImage(True), (self.num_envs, RGB_CHANNELS, self.img_width, self.img_height)))
             self.stacked_rgb_imgs = self._stack_frames(self.stacked_rgb_imgs, rgb_imgs)
             new_obs['rgb'] = np.array(self.stacked_rgb_imgs).swapaxes(0, 1).swapaxes(1, 2)
+
 
         return new_obs.copy()
 

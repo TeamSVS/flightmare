@@ -431,8 +431,10 @@ Scalar attitude_reward = 0.6 * log(velX + 1) * tanh(1.1 * drone_dir.dot(camera_d
  Scalar Wall_behind_penalty = velocityX > survive_rew_ ? 0 : velocityX / 30;
 
   //  change progress reward as survive reward
-   Scalar total_reward =
-         dist_reward + collision_penalty + attitude_reward + Wall_behind_penalty;
+     // Scalar total_reward =
+     //       dist_reward + collision_penalty + attitude_reward + Wall_behind_penalty;
+      Scalar total_reward =
+            dist_reward + Wall_behind_penalty;
   string str =to_string(dist_reward) + "  " + to_string(collision_penalty)
                   +  "  " +
     to_string(attitude_reward) +  "  " + to_string(Wall_behind_penalty)
