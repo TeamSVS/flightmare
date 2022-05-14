@@ -154,7 +154,7 @@ class FlightEnvVec(VecEnv, ABC):
 
         drone_spaces = {'state': spaces.Box(
             low=-1., high=1.,
-            shape=(13, self.n_frames), dtype=np.float32
+            shape=(13,), dtype=np.float32
         )}
 
         if 'depth' == self.mode or 'both' == self.mode:
@@ -412,8 +412,7 @@ class FlightEnvVec(VecEnv, ABC):
                 with open("NEW_VAL_NORMALIZATION.txt", "w") as myfile:
                     myfile.write(json.dumps(self.obs_ranges_dic))
 
-            self.stacked_drone_state = self._stack_frames(self.stacked_drone_state, drone_state)
-            new_obs['state'] = np.array(self.stacked_drone_state).swapaxes(0, 1).swapaxes(1, 2)
+            new_obs['state'] = np.array(drone_state)
         if 'depth' == self.mode or 'both' == self.mode:
             depth_imgs = self.getDepthImage().reshape((self.num_envs, 1, self.img_height, self.img_width))
             self.stacked_depth_imgs = self._stack_frames(self.stacked_depth_imgs, depth_imgs)
