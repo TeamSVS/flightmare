@@ -140,6 +140,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.seed_val = 0
         self._heartbeat = True if env_cfg["simulation"]["heartbeat"] == "yes" else False
 
+<<<<<<< HEAD
         if self._heartbeat and 'obs' != self.mode:
             self.thread.daemon = True
             self.thread.start()
@@ -157,6 +158,21 @@ class FlightEnvVec(VecEnv, ABC):
         if os.path.exists("NEW_VAL_NORMALIZATION.txt"):
             with open('NEW_VAL_NORMALIZATION.txt') as json_file:
                 self.obs_ranges_dic = json.load(json_file)
+=======
+        self.obs_ranges_dic = {0: [-10, 65],
+                               1: [-10, 10],
+                               2: [0, 10],
+                               7: [-3, 65],
+                               8: [-25, 30],
+                               9: [-20, 20],
+                               10: [-9, 9],
+                               11: [-9, 9],
+                               12: [-9, 9]}
+
+        # if os.path.exists("NEW_VAL_NORMALIZATION.txt"):
+        #    with open('NEW_VAL_NORMALIZATION.txt') as json_file:
+        #        self.obs_ranges_dic = json.load(json_file)
+>>>>>>> develop
 
         self.act_dim = self.wrapper.getActDim()
         self.obs_dim = self.wrapper.getObsDim()  # C++ obs shape
@@ -175,7 +191,7 @@ class FlightEnvVec(VecEnv, ABC):
 
         drone_spaces = {'state': spaces.Box(
             low=-1., high=1.,
-            shape=(13, self.n_frames), dtype=np.float32
+            shape=(13,), dtype=np.float32
         )}
 
         if 'depth' == self.mode or 'both' == self.mode:
@@ -470,7 +486,7 @@ class FlightEnvVec(VecEnv, ABC):
         ## New Obs ##
         new_obs = {}
         # position (z, x, y) = [0:3], attitude=[3:7], linear_velocity=[7:10], angular_velocity=[10:13]
-        drone_state = self.getQuadState()[:, :13].copy()
+        drone_state = self.getQuadState()[:, 1:14].copy()
         # normalize between -1 and 1
         for key in self.obs_ranges_dic:
             # extract values
@@ -506,20 +522,17 @@ class FlightEnvVec(VecEnv, ABC):
                 with open("NEW_VAL_NORMALIZATION.txt", "w") as myfile:
                     myfile.write(json.dumps(self.obs_ranges_dic))
 
-        self.stacked_drone_state = self._stack_frames(self.stacked_drone_state, drone_state)
-        new_obs['state'] = np.array(self.stacked_drone_state).swapaxes(0, 1).swapaxes(1, 2)
-        if 'obs' != self.mode:
-            if 'depth' == self.mode or 'both' == self.mode:
-                depth_imgs = self.getDepthImage().reshape((self.num_envs, 1, self.img_height, self.img_width))
-                self.stacked_depth_imgs = self._stack_frames(self.stacked_depth_imgs, depth_imgs)
-                new_obs['depth'] = np.array(self.stacked_depth_imgs).swapaxes(0, 1).swapaxes(1, 2)
-            if 'rgb' == self.mode or 'both' == self.mode:
-                rgb_imgs = _normalize_img(
-                    np.reshape(self.getImage(True), (self.num_envs, RGB_CHANNELS, self.img_width, self.img_height)))
-                self.stacked_rgb_imgs = self._stack_frames(self.stacked_rgb_imgs, rgb_imgs)
-                new_obs['rgb'] = np.array(self.stacked_rgb_imgs).swapaxes(0, 1).swapaxes(1, 2)
-        else:
-            new_obs['obs'] = self._observation[:, 15:].copy()
+
+            new_obs['state'] = np.array(drone_state)
+        if 'depth' == self.mode or 'both' == self.mode:
+            depth_imgs = self.getDepthImage().reshape((self.num_envs, 1, self.img_height, self.img_width))
+            self.stacked_depth_imgs = self._stack_frames(self.stacked_depth_imgs, depth_imgs)
+            new_obs['depth'] = np.array(self.stacked_depth_imgs).swapaxes(0, 1).swapaxes(1, 2)
+        if 'rgb' == self.mode or 'both' == self.mode:
+            rgb_imgs = _normalize_img(
+                np.reshape(self.getImage(True), (self.num_envs, RGB_CHANNELS, self.img_width, self.img_height)))
+            self.stacked_rgb_imgs = self._stack_frames(self.stacked_rgb_imgs, rgb_imgs)
+            new_obs['rgb'] = np.array(self.stacked_rgb_imgs).swapaxes(0, 1).swapaxes(1, 2)
 
         return new_obs.copy()
 
