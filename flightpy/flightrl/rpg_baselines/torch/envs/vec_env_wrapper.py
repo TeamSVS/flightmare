@@ -378,7 +378,7 @@ class FlightEnvVec(VecEnv, ABC):
                 # x depth, y,z width height of image
                  #x, y, z = mpc_step((action[0], action[1]))
                 real_action[i] = actual_mpc(z, x, y, pos, vel, att, omega)
-
+                print(real_action)
 
         self.wrapper.step(
             real_action,
