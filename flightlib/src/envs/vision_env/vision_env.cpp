@@ -247,13 +247,14 @@ bool VisionEnv::step(const Ref<Vector<>> act, Ref<Vector<>> obs,
       "actions.");
   }
 
-  //
+
   old_pi_act_ = pi_act_;
 
   // compute actual control actions
   // act has range between [-1, 1] due to Tanh layer of the NN policy
-  pi_act_ = act.cwiseProduct(act_std_) + act_mean_;
-
+  if(use_mpc_ != "yes"){
+    pi_act_ = act.cwiseProduct(act_std_) + act_mean_;
+  } 
   cmd_.t += sim_dt_;
   quad_state_.t += sim_dt_;
 
@@ -457,6 +458,7 @@ bool VisionEnv::loadParam(const YAML::Node &cfg) {
     max_detection_range_ =
       cfg["environment"]["max_detection_range"].as<Scalar>();
   }
+  use_mpc_ = cfg["environment"]["use_mpc"].as<std::string>();
 
   if (cfg["simulation"]) {
     sim_dt_ = cfg["simulation"]["sim_dt"].as<Scalar>();
