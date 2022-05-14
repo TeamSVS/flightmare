@@ -139,6 +139,7 @@ class VisionEnv final : public EnvBase {
   int num_collision;
   Scalar xMax;
   std::string use_mpc_;
+  std::vector<Scalar> r_BC_vec;
 
 
   // max detection range (meter)

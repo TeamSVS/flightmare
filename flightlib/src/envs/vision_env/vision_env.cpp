@@ -365,7 +365,11 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
  }
 
 Eigen::Matrix3d rot_mat = quad_state_.R();
-Eigen::Vector3d origin(1,0,0);
+// this works only for rotation around X axis in the config.yaml
+Eigen::Vector3d origin(cos(r_BC_vec[0] *  3.141592653589793 / 180 ),0,sin(r_BC_vec[0] *  3.141592653589793 / 180));
+//logger_.error(  to_string(cos( 90 *  3.141592653589793 / 180  )));
+logger_.error( to_string(origin[0]) + " " +  to_string(origin[1]) + " " +  to_string(origin[2]) + " ");
+
 Eigen::Vector3d camera_dir =  rot_mat * origin;
 //Scalar attitude_reward = attitude_ori_coeff_ * tanh(2.2 * drone_dir.dot(camera_dir));
 Scalar attitude_reward = 0.6 * log(velX + 1) * tanh(1.1 * drone_dir.dot(camera_dir));
@@ -752,7 +756,7 @@ bool VisionEnv::configCamera(const YAML::Node &cfg) {
   // load camera settings
   std::vector<Scalar> t_BC_vec =
     cfg["rgb_camera"]["t_BC"].as<std::vector<Scalar>>();
-  std::vector<Scalar> r_BC_vec =
+  r_BC_vec =
     cfg["rgb_camera"]["r_BC"].as<std::vector<Scalar>>();
 
   //
