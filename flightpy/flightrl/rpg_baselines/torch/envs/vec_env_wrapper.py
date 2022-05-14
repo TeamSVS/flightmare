@@ -120,19 +120,20 @@ class FlightEnvVec(VecEnv, ABC):
         self.mode = mode  # rgb, depth, both
         self.seed_val = 0
         self._heartbeat = True if env_cfg["simulation"]["heartbeat"] == "yes" else False
-        self.obs_ranges_dic = {0: [0, 10],
-                               1: [-20, 80],
-                               2: [-10, 10],
-                               3: [0, 10],
-                               8: [-35, 50],
-                               9: [-35, 50],
-                               10: [-30, 30],
-                               11: [-10, 10],
-                               12: [-10, 10]}
 
-        if os.path.exists("NEW_VAL_NORMALIZATION.txt"):
-            with open('NEW_VAL_NORMALIZATION.txt') as json_file:
-                self.obs_ranges_dic = json.load(json_file)
+        self.obs_ranges_dic = {0: [-10, 65],
+                               1: [-10, 10],
+                               2: [0, 10],
+                               7: [-3, 65],
+                               8: [-25, 30],
+                               9: [-20, 20],
+                               10: [-9, 9],
+                               11: [-9, 9],
+                               12: [-9, 9]}
+
+        # if os.path.exists("NEW_VAL_NORMALIZATION.txt"):
+        #    with open('NEW_VAL_NORMALIZATION.txt') as json_file:
+        #        self.obs_ranges_dic = json.load(json_file)
 
         self.act_dim = self.wrapper.getActDim()
         self.obs_dim = self.wrapper.getObsDim()  # C++ obs shape
@@ -375,7 +376,7 @@ class FlightEnvVec(VecEnv, ABC):
         ## New Obs ##
         new_obs = {}
         # position (z, x, y) = [0:3], attitude=[3:7], linear_velocity=[7:10], angular_velocity=[10:13]
-        drone_state = self.getQuadState()[:, :13].copy()
+        drone_state = self.getQuadState()[:, 1:14].copy()
         # normalize between -1 and 1
         for key in self.obs_ranges_dic:
             # extract values

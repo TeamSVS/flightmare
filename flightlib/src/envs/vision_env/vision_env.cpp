@@ -252,7 +252,7 @@ bool VisionEnv::step(const Ref<Vector<>> act, Ref<Vector<>> obs,
 
   // compute actual control actions
   // act has range between [-1, 1] due to Tanh layer of the NN policy
-  pi_act_ = act.cwiseProduct(act_std_) + act_mean_;
+  pi_act_ = act.cwiseProduct(act_std_) + act_mean_;#TODO
 
   cmd_.t += sim_dt_;
   quad_state_.t += sim_dt_;
