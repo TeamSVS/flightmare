@@ -354,6 +354,18 @@ class FlightEnvVec(VecEnv, ABC):
             frame_list.insert(0, new_frame)
         return frame_list
 
+
+
+    def cart2pol(self, x, y):
+        rho = np.sqrt(x**2 + y**2)
+        phi = np.arctan2(y, x)
+        return(rho, phi)
+
+    def pol2cart(self, rho, phi):
+        x = rho * np.cos(phi)
+        y = rho * np.sin(phi)
+        return(x, y)
+
     def step(self, action):
 
         real_action = np.zeros((self.num_envs, 4))
@@ -361,20 +373,26 @@ class FlightEnvVec(VecEnv, ABC):
             depths = self.getDepthImage().reshape((self.num_envs,self.img_height, self.img_width))
 
             for i in range(self.num_envs):
-                x = action[i,0] - int(self.img_width/2) #width
-                y = action[i,1] - int(self.img_height/2)#height
+                width = action[i,0] - int(self.img_width/2) #width
+                height = action[i,1] - int(self.img_height/2)#height
 
-                z = depths[i][x][y] #self.getQuadState()[:, 1:4]
+                d = depths[i][width][height] #self.getQuadState()[:, 1:4]
+
                 pos = self.getQuadState()[i][1:4]
                 vel = self.getQuadState()[i][8:11]
                 att = self.getQuadState()[i][4:8]
                 omega = self.getQuadState()[i][11:14]
 
-                # x, y = next_target(depth)
+                #x, y = next_target(d)
                 # x depth, y,z width height of image
-                 #x, y, z = mpc_step((action[0], action[1]))
-                real_action[i] = actual_mpc(z, x, y, pos, vel, att, omega)
-                print(real_action)
+                #x, y, z = mpc_step((x, y))
+                #print(height)
+                #print(d)
+                width /= (self.img_width/2)
+                height /= (self.img_height/2)
+                d = d * 500
+                real_action[i] = actual_mpc(d, width, height, pos, vel, att, omega)
+
 
         self.wrapper.step(
             real_action,
