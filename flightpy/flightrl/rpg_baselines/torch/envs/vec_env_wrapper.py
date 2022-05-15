@@ -37,9 +37,8 @@ from stable_baselines3.common.vec_env.util import (copy_obs_dict, dict_to_obs,
 # import sys
 # sys.path.append('envtest/python/fuda_tomasso')
 
-import fuda_tomasso.FD
-import fuda_tomasso.next_target
-from fuda_tomasso.MPC2 import actual_mpc
+from mpc_files import *
+from mpc_files.MPC2 import actual_mpc
 
 ######################################
 ##########--COSTANT VALUES--##########
@@ -112,6 +111,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.name = name
         self.n_frames = n_frames
         self.env_cfg = env_cfg
+        self.action_multiplier = 2
         self.mode = mode  # rgb, depth, both,obs
         self.stopFlag = Event()
         self.thread = PingThread(self.stopFlag, self)
@@ -201,7 +201,7 @@ class FlightEnvVec(VecEnv, ABC):
                 #    high = np.int32(np.ones(2, dtype = np.int32) * 5), #int(self.img_width/2),
                 #    dtype = np.int32,
         if env_cfg["environment"]["use_mpc"]:
-            self._action_space = spaces.MultiDiscrete([self.img_width, self.img_height])
+            self._action_space = spaces.MultiDiscrete([int(self.img_width/2), int(self.img_height/2)])
         else:
             self._action_space = spaces.Box(
                low=np.ones(self.act_dim) * -1.0,
@@ -373,8 +373,8 @@ class FlightEnvVec(VecEnv, ABC):
             depths = self.getDepthImage().reshape((self.num_envs,self.img_height, self.img_width))
 
             for i in range(self.num_envs):
-                width = action[i,0] - int(self.img_width/2) #width
-                height = action[i,1] - int(self.img_height/2)#height
+                width = (action[i,0] * self.action_multiplier)  - int(self.img_width/2) #width
+                height = (action[i,1] * self.action_multiplier) - int(self.img_height/2)#height
 
                 d = depths[i][width][height] #self.getQuadState()[:, 1:4]
 
