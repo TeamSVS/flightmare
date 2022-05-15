@@ -30,11 +30,11 @@ rewards:
 rgb_camera:
   on: yes
   t_BC: [ 0.0, 0.0, 0.3 ] # translational vector of the camera with repect to the body frame
-  r_BC: [ 25, 0.0, -90] # - rotational angle (roll, pitch, yaw) of the camera in degree.
+  r_BC: [ 0.0, 0.0, -90] # - rotational angle (roll, pitch, yaw) of the camera in degree.
   channels: 3
   width: 150
   height: 150
-  fov: 90.0
+  fov: 80.0
   enable_depth: yes
   enable_segmentation: no
   enable_opticalflow: no
@@ -48,9 +48,9 @@ unity:
 simulation:
   seed: 1
   sim_dt: 0.02
-  max_t: 20.0
-  num_envs: 2
-  num_threads: 10
+  max_t: 80.0
+  num_envs: 5
+  num_threads: 32
   heartbeat: yes
   fakeQuadrotorScaleSize: 0.001
 

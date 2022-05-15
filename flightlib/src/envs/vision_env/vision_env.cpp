@@ -107,7 +107,7 @@ bool VisionEnv::reset(Ref<Vector<>> obs) {
 
   max_dist_ = goal_pos_ - quad_state_.p;
   num_collision = 0;
-  xMax = 0;
+  xMax = quad_state_.x(QS::POSX);
 
 //  std::cout << "Reset!\n";
 //  std::cout << "Starting Drone X:" << quad_state_.p(QS::POSX) << "\n";
@@ -339,7 +339,12 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   //logger_.error( to_string(quad_state_.p.norm()) );
   //logger_.error( to_string(quad_state_.p[0]) + " " + to_string(quad_state_.p[1]) + " " +  to_string(quad_state_.p[2]) );
 
-    Scalar dist_reward = sqrt(velX) * (1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
+      Scalar dist_reward = sqrt(velX) * (1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
+      // const Scalar positionX =quad_state_.x(QS::POSX);
+      // if(positionX > xMax){
+      //   dist_reward = (positionX - xMax )*goal_dist_rew_;
+      //   xMax = positionX;
+      // }
 
    //Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
 
@@ -370,7 +375,7 @@ Eigen::Matrix3d rot_mat = quad_state_.R();
 // this works only for rotation around X axis in the config.yaml
 Eigen::Vector3d origin(cos(r_BC_vec[0] *  3.141592653589793 / 180 ),0,sin(r_BC_vec[0] *  3.141592653589793 / 180));
 //logger_.error(  to_string(cos( 90 *  3.141592653589793 / 180  )));
-logger_.error( to_string(origin[0]) + " " +  to_string(origin[1]) + " " +  to_string(origin[2]) + " ");
+//logger_.error( to_string(origin[0]) + " " +  to_string(origin[1]) + " " +  to_string(origin[2]) + " ");
 
 Eigen::Vector3d camera_dir =  rot_mat * origin;
 //Scalar attitude_reward = attitude_ori_coeff_ * tanh(2.2 * drone_dir.dot(camera_dir));
@@ -426,15 +431,20 @@ Scalar attitude_reward = 0.6 * log(velX + 1) * tanh(1.1 * drone_dir.dot(camera_d
   // }
 
   //logger_.info( "angular velocit: " + str1 + " " + str2 + " " + str3);
- // logger_.info( "attitude : " + gg);
+ // logger_.info( "attitude : " + gg);mpc
 
  Scalar Wall_behind_penalty = velocityX > survive_rew_ ? 0 : velocityX / 30;
 
   //  change progress reward as survive reward
      // Scalar total_reward =
      //       dist_reward + collision_penalty + attitude_reward + Wall_behind_penalty;
-      Scalar total_reward =
-            dist_reward + Wall_behind_penalty;
+    Scalar total_reward =0;
+     if(use_mpc_ == "yes"){
+       total_reward = dist_reward + collision_penalty + Wall_behind_penalty;//+ attitude_reward 
+     }else{
+      total_reward = dist_reward + Wall_behind_penalty;
+     }
+
   string str =to_string(dist_reward) + "  " + to_string(collision_penalty)
                   +  "  " +
     to_string(attitude_reward) +  "  " + to_string(Wall_behind_penalty)
