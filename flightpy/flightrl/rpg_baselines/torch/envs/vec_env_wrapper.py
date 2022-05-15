@@ -127,6 +127,8 @@ class FlightEnvVec(VecEnv, ABC):
         if 'obs' == self.mode:
             self.env_cfg["unity"]["render"] = "no"
         else:
+            self.thread.daemon = True
+            self.thread.start()
             self.spawn_flightmare(self.in_port, self.out_port)
             self.env_cfg["rgb_camera"]["on"] = "yes"
             self.env_cfg["unity"]["render"] = "yes"

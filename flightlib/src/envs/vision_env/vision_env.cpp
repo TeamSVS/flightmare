@@ -10,10 +10,7 @@ VisionEnv::VisionEnv()
 
 VisionEnv::VisionEnv(const std::string &cfg_path, const int env_id)
   : EnvBase() {
-  // check if configuration file exist
-  if (!(file_exists(cfg_path))) {
-    logger_.error("Configuration file %s does not exists.", cfg_path);
-  }
+
   // load configuration file
   cfg_ = YAML::LoadFile(cfg_path);
   //
@@ -325,146 +322,17 @@ static double getDistance(Vector<3> v1, Vector<3> v2){
 
 bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   // ---------------------- reward function design
+  Scalar droneX = quad_state_.p(QS::POSX);
+    Scalar dist_reward = 0.0;
+    if( droneX > xMax){
+      dist_reward = (droneX - xMax) * goal_dist_rew_;
+      xMax = droneX;
+    }
 
-  const Scalar velocityX =quad_state_.x(QS::VELX);
-  //const Scalar velocityY =quad_state_.x(QS::VELY);
-  //const Scalar velocityZ =quad_state_.x(QS::VELZ);
+   Scalar total_reward = dist_reward;
 
-  const Scalar velX = velocityX > 0 ? abs(velocityX) : 0;
-
-  //logger_.error( to_string(velocityX) + " " + to_string(velocityY) + " " +  to_string(velocityZ) );
-  //logger_.error( to_string(positionX) + " " + to_string(positionY) + " " +  to_string(positionZ) );
-  //logger_.error( to_string(quad_state_.p.norm()) );
-  //logger_.error( to_string(quad_state_.p[0]) + " " + to_string(quad_state_.p[1]) + " " +  to_string(quad_state_.p[2]) );
-
-      Scalar dist_reward = sqrt(velX) * (1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
-      // const Scalar positionX =quad_state_.x(QS::POSX);
-      // if(positionX > xMax){
-      //   dist_reward = (positionX - xMax )*goal_dist_rew_;
-      //   xMax = positionX;
-      // }
-
-   //Scalar time_percentage = (max_t_ - cmd_.t) / max_t_;
-
-  // - angular velocity penalty, to avoid oscillations
-
-  // const Scalar positionX =quad_state_.x(QS::POSX);
-  // const Scalar positionY =quad_state_.x(QS::POSY);
-  // const Scalar positionZ =quad_state_.x(QS::POSZ);
-
-
-  string gg = "";
-
- Eigen::Vector3d pos_new(quad_state_.p(QS::POSX), quad_state_.p(QS::POSY), quad_state_.p(QS::POSZ));
- Eigen::Vector3d pos_old(quad_old_state_.p(QS::POSX), quad_old_state_.p(QS::POSY), quad_old_state_.p(QS::POSZ));
-
- Eigen::Vector3d drone_dir;
- Eigen::Vector3d WorldX(1,0,0);
- if(drone_orientation_.compare("global") == 0){
-      drone_dir = WorldX;
-      gg = "global";
- }else {
-
-      drone_dir = (pos_new - pos_old) / getDistance(pos_new, pos_old);
-      gg = "local";
- }
-
-Eigen::Matrix3d rot_mat = quad_state_.R();
-// this works only for rotation around X axis in the config.yaml
-Eigen::Vector3d origin(cos(r_BC_vec[0] *  3.141592653589793 / 180 ),0,sin(r_BC_vec[0] *  3.141592653589793 / 180));
-//logger_.error(  to_string(cos( 90 *  3.141592653589793 / 180  )));
-//logger_.error( to_string(origin[0]) + " " +  to_string(origin[1]) + " " +  to_string(origin[2]) + " ");
-
-Eigen::Vector3d camera_dir =  rot_mat * origin;
-//Scalar attitude_reward = attitude_ori_coeff_ * tanh(2.2 * drone_dir.dot(camera_dir));
-Scalar attitude_reward = 0.6 * log(velX + 1) * tanh(1.1 * drone_dir.dot(camera_dir));
-
-//logger_.warn( to_string( drone_dir.dot(camera_dir) ));
-
-
- // get N most closest obstacles as the observation
- Vector<visionenv::kNObstacles * visionenv::kNObstaclesState> obstacles;
- getObstacleState(obstacles);
-
- // - compute collision penalty idea di giuseppe 2
-  Scalar collision_penalty = 0.0;
-  //Scalar total_detectable_obstacles = 0;
-  //size_t idx = 0;
- //logger_.warn(  to_string(obstacles.size()) );
-  for (int i = 0; i < obstacles.size() / 4; i++){
-      //per single obstacle
-      Eigen::Vector3d ob_relative_pos(obstacles[i*4+0], obstacles[i*4+1], obstacles[i*4+2]);
-      Eigen::Vector3d ori(0,0,0);
-      Scalar radius = obstacles[i*4+3];
-      Scalar obstacle_dis = getDistance(ori, ob_relative_pos);
-      obstacle_dis = (obstacle_dis > 0) && (obstacle_dis < max_detection_range_) ?
-                    obstacle_dis : max_detection_range_;
-      Eigen::Vector3d obs_dir = ob_relative_pos / obstacle_dis;
-      Scalar dot_theta = abs(obs_dir.dot(drone_dir));
-      Scalar theta = acos(dot_theta); // the magnitude of these 2 dirs are one.
-      theta = theta * 180 / abs(obstacle_dis * 3.141592653589793);
-      Scalar alpha = radius * 180 / abs(obstacle_dis * 3.141592653589793);
-
-      if(theta < alpha && theta == theta && alpha == alpha){ //non modificare pls
-          // collision_penalty = (1 / 10 - 1 / obstacle_dis);
-          // if(collision0_penalty < -1 ){
-          //   collision_penalty = -1;
-          //collision_penalty -= 1/(0.1 * pow(obstacle_dis, 8) + 1);
-          collision_penalty -= 1/( 1/velX * pow(obstacle_dis, 5) + 1);
-
-      }
-      //collision_penalty *= collision_coeff_;
-      if(collision_penalty != collision_penalty || collision_penalty < -1)
-        collision_penalty = -1;
-    //  if(theta != theta || alpha != alpha)
-      //logger_.warn(  to_string(i) + " " +  to_string(theta) + " " + to_string(alpha) );
-  }
-
-  //idea giuseppe
-  // if(quad_state_.p(QS::POSX) > xMax){
-  //   dist_reward = dist_reward *(1 + codrone_dir.dot(camera_dir)llision_penalty);
-  //   xMax =  quad_state_.p(QS::POSX);
-  // }else{
-  //   dist_reward = 0;
-  // }
-
-  //logger_.info( "angular velocit: " + str1 + " " + str2 + " " + str3);
- // logger_.info( "attitude : " + gg);mpc
-
- Scalar Wall_behind_penalty = velocityX > survive_rew_ ? 0 : velocityX / 30;
-
-  //  change progress reward as survive reward
-
-     // Scalar total_reward =
-     //       dist_reward + collision_penalty + attitude_reward + Wall_behind_penalty;
-    Scalar total_reward =0;
-     if(use_mpc_ == "yes"){
-       total_reward = dist_reward + collision_penalty + Wall_behind_penalty;//+ attitude_reward
-     }else{
-      total_reward = dist_reward + Wall_behind_penalty;
-     }
-
-  string str =to_string(dist_reward) + "  " + to_string(collision_penalty)
-                  +  "  " +
-    to_string(attitude_reward) +  "  " + to_string(Wall_behind_penalty)
-    +  "  " + to_string(total_reward) ;
-//  logger_.warn(str);
-  //ogger_.info(to_string(( num_dynamic_objects_ + num_static_objects_ )));
-
-
-  //
-  // if(quad_state_.p(QS::POSX) > xMax)
-  //    xMax =  quad_state_.p(QS::POSX);
-  //
-  // if (xMax - 0.5 > quad_state_.p(QS::POSX)){
-  //   total_reward = -0.5;
-  // }
-
-
-
-    // return all reward components for debug purposes
-    reward << dist_reward, collision_penalty, attitude_reward, survive_rew_, total_reward;
-  return true;
+    reward << dist_reward, 0, 0, 0, total_reward;
+    return true;
 }
 
 bool VisionEnv::isTerminalState(Scalar &reward) {
@@ -637,10 +505,7 @@ bool VisionEnv::loadParam(const YAML::Node &cfg) {
   std::string scene_file =
     getenv("FLIGHTMARE_PATH") + std::string("/flightpy/configs/scene.yaml");
   // check if configuration file exist
-  if (!(file_exists(scene_file))) {
-    logger_.error("Unity scene configuration file %s does not exists.",
-                  scene_file);
-  }
+
   // load configuration file
   YAML::Node scene_cfg_node = YAML::LoadFile(scene_file);
   std::string scene_idx = "scene_" + std::to_string(scene_id_);
@@ -652,11 +517,7 @@ bool VisionEnv::loadParam(const YAML::Node &cfg) {
 }
 
 bool VisionEnv::configDynamicObjects(const std::string &yaml_file) {
-  //
-  if (!(file_exists(yaml_file))) {
-    logger_.error("Configuration file %s does not exists.", yaml_file);
-    return false;
-  }
+
   YAML::Node cfg_node = YAML::LoadFile(yaml_file);
 
   // logger_.info("Configuring dynamic objects");
@@ -689,10 +550,7 @@ bool VisionEnv::configDynamicObjects(const std::string &yaml_file) {
     std::string csv_name = cfg_node[object_id]["csvtraj"].as<std::string>();
     std::string csv_file = obstacle_cfg_path_ + std::string("/csvtrajs/") +
                            csv_name + std::string(".csv");
-    if (!(file_exists(csv_file))) {
-      logger_.error("Configuration file %s does not exists.", csv_file);
-      return false;
-    }
+
     obj->loadTrajectory(csv_file);
 
     dynamic_objects_.push_back(obj);
@@ -702,11 +560,7 @@ bool VisionEnv::configDynamicObjects(const std::string &yaml_file) {
 }
 
 bool VisionEnv::configStaticObjects(const std::string &csv_file) {
-  //
-  if (!(file_exists(csv_file))) {
-    logger_.error("Configuration file %s does not exists.", csv_file);
-    return false;
-  }
+
   std::ifstream infile(csv_file);
   int i = 0;
   for (auto &row : CSVRange(infile)) {
