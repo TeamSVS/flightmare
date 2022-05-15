@@ -339,7 +339,13 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
   //logger_.error( to_string(quad_state_.p.norm()) );
   //logger_.error( to_string(quad_state_.p[0]) + " " + to_string(quad_state_.p[1]) + " " +  to_string(quad_state_.p[2]) );
 
-      Scalar dist_reward = sqrt(velX) * (1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
+      //Scalar dist_reward = sqrt(velX) * (1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
+      Scalar dist_reward = 0; // sqrt(velX) * (1.0 - sqrt(abs(goal_pos_[0] -  quad_state_.p(QS::POSX)) / abs(max_dist_[0])));
+ const Scalar positionX =quad_state_.x(QS::POSX);
+ if(positionX > xMax){
+   dist_reward = (positionX - xMax)*goal_dist_rew_;
+   xMax = positionX;
+ }
       // const Scalar positionX =quad_state_.x(QS::POSX);
       // if(positionX > xMax){
       //   dist_reward = (positionX - xMax )*goal_dist_rew_;
@@ -374,7 +380,7 @@ bool VisionEnv::computeReward(Ref<Vector<>> reward) {
 Eigen::Matrix3d rot_mat = quad_state_.R();
 // this works only for rotation around X axis in the config.yaml
 Eigen::Vector3d origin(cos(r_BC_vec[0] *  3.141592653589793 / 180 ),0,sin(r_BC_vec[0] *  3.141592653589793 / 180));
-//logger_.error(  to_string(cos( 90 *  3.141592653589793 / 180  )));
+///logger_.error(  to_string(cos( 90 *  3.141592653589793 / 180  )));
 //logger_.error( to_string(origin[0]) + " " +  to_string(origin[1]) + " " +  to_string(origin[2]) + " ");
 
 Eigen::Vector3d camera_dir =  rot_mat * origin;
@@ -439,8 +445,8 @@ Scalar attitude_reward = 0.6 * log(velX + 1) * tanh(1.1 * drone_dir.dot(camera_d
      // Scalar total_reward =
      //       dist_reward + collision_penalty + attitude_reward + Wall_behind_penalty;
     Scalar total_reward =0;
-     if(use_mpc_ == "yes"){
-       total_reward = dist_reward + collision_penalty + Wall_behind_penalty;//+ attitude_reward 
+     if(use_mpc_ != "yes"){
+       total_reward = dist_reward + collision_penalty + attitude_reward + Wall_behind_penalty;
      }else{
       total_reward = dist_reward + Wall_behind_penalty;
      }

@@ -37,9 +37,8 @@ from stable_baselines3.common.vec_env.util import (copy_obs_dict, dict_to_obs,
 # import sys
 # sys.path.append('envtest/python/fuda_tomasso')
 
-import fuda_tomasso.FD
-import fuda_tomasso.next_target
-from fuda_tomasso.MPC2 import actual_mpc
+
+from mpc_files.MPC2 import actual_mpc
 
 ######################################
 ##########--COSTANT VALUES--##########
@@ -201,7 +200,7 @@ class FlightEnvVec(VecEnv, ABC):
                 #    high = np.int32(np.ones(2, dtype = np.int32) * 5), #int(self.img_width/2),
                 #    dtype = np.int32,
         if env_cfg["environment"]["use_mpc"]:
-            self._action_space = spaces.MultiDiscrete([self.img_width, self.img_height])
+            self._action_space = spaces.MultiDiscrete([self.img_width, self.img_height, 1500])
         else:
             self._action_space = spaces.Box(
                low=np.ones(self.act_dim) * -1.0,
@@ -388,9 +387,9 @@ class FlightEnvVec(VecEnv, ABC):
                 #x, y, z = mpc_step((x, y))
                 #print(height)
                 #print(d)
-                width /= (self.img_width/2)
-                height /= (self.img_height/2)
-                d = d * 500
+                #width /= (self.img_width/2)
+                #height /= (self.img_height/2)
+                d *= action[i,2]
                 real_action[i] = actual_mpc(d, width, height, pos, vel, att, omega)
 
 
