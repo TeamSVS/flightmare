@@ -111,7 +111,7 @@ class FlightEnvVec(VecEnv, ABC):
         self.name = name
         self.n_frames = n_frames
         self.env_cfg = env_cfg
-        self.action_multiplier = 2
+        self.action_multiplier = env_cfg["rewards"]["mpc_action_multiplier"]
         self.mode = mode  # rgb, depth, both,obs
         self.stopFlag = Event()
         self.thread = PingThread(self.stopFlag, self)

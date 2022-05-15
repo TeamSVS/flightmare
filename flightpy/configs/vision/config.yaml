@@ -8,7 +8,6 @@ environment:
   ref_qx: [1.0, 0.0, 0.0, 0] #the  x, y, z, w   [0.976, 0.0, 0.219, 0]
   use_mpc: yes
 
-
 rewards:
   vel_coeff: -0.01
   collision_coeff: 1   #-0.01
@@ -17,7 +16,7 @@ rewards:
   goal_dist_rew: 2 #0.09
   attitude_ori_coeff: 0.5
   orientation: "local" #local or global
-
+  mpc_action_multiplier: 2
   names:
     [
       "dist_reward",
