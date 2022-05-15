@@ -1,32 +1,40 @@
 environment:
-  level: "easy" # three difficulty level [easy, medium, hard]
+  level: "medium" # three difficulty level [easy, medium, hard]
   env_folder: "environment_0" # configurations for dynamic and static obstacles
   world_box: [ -20, 80, -10, 10, 0.0, 10 ] # Bounding box applied during training, exiting this box terminates the episode. [xmin, xmax, ymin, ymax, zmin, zmax]
   goal_vel: [ 3.0, 0.0, 0.0 ] # goal velicty for tracking vx, vy, vz
   max_detection_range: 10.0 # max obstacle detection range [m], obstacles outside this range will not be detected. The number of obstacles detected is fixed to 10, if less than 10 obstacles are within detectable range, the observation is padded with 10.0
+  goal_pos: [ 80.0, 0.0, 5.0 ] #goal position to reach per axis
+  ref_qx: [1.0, 0.0, 0.0, 0] #the  x, y, z, w   [0.976, 0.0, 0.219, 0]
+  use_mpc: yes
+
 
 rewards:
   vel_coeff: -0.01
-  collision_coeff: -0.01
-  angular_vel_coeff: -0.0001
-  survive_rew: 0.03
+  collision_coeff: 1   #-0.01
+  angular_vel_coeff: -0.0001 #-0.0001
+  survive_rew: 0.03 #0.03
+  goal_dist_rew: 2 #0.09
+  attitude_ori_coeff: 0.5
+  orientation: "local" #local or global
+
   names:
     [
-      "lin_vel_reward",
+      "dist_reward",
       "collision_penalty",
-      "ang_vel_penalty",
-      "survive_rew",
-      "total",
+      "attitude_reward",
+      "survive_rew_",
+      "total_reward"
     ]
 
 rgb_camera:
   on: yes
   t_BC: [ 0.0, 0.0, 0.3 ] # translational vector of the camera with repect to the body frame
-  r_BC: [ 0.0, 0.0, -90 ] # rotational angle (roll, pitch, yaw) of the camera in degree.
+  r_BC: [ 25, 0.0, -90] # - rotational angle (roll, pitch, yaw) of the camera in degree.
   channels: 3
-  width: 100
-  height: 100
-  fov: 70.0
+  width: 150
+  height: 150
+  fov: 90.0
   enable_depth: yes
   enable_segmentation: no
   enable_opticalflow: no
@@ -34,8 +42,8 @@ rgb_camera:
 unity:
   scene_id: 0 # 0 warehouse, 1 street, 2 forest, 3 wasteland
   render: yes
-  input_port: 10253
-  output_port: 10254
+  input_port: 10251
+  output_port: 10252
 
 simulation:
   seed: 1
