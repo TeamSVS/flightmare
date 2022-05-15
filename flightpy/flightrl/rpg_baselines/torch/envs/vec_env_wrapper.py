@@ -201,7 +201,7 @@ class FlightEnvVec(VecEnv, ABC):
                 #    high = np.int32(np.ones(2, dtype = np.int32) * 5), #int(self.img_width/2),
                 #    dtype = np.int32,
         if env_cfg["environment"]["use_mpc"]:
-            self._action_space = spaces.MultiDiscrete([int(self.img_width/2), int(self.img_height/2)])
+            self._action_space = spaces.MultiDiscrete([self.img_width/self.action_multiplier, self.img_height/self.action_multiplier, 150])
         else:
             self._action_space = spaces.Box(
                low=np.ones(self.act_dim) * -1.0,
@@ -375,23 +375,12 @@ class FlightEnvVec(VecEnv, ABC):
             for i in range(self.num_envs):
                 width = (action[i,0] * self.action_multiplier)  - int(self.img_width/2) #width
                 height = (action[i,1] * self.action_multiplier) - int(self.img_height/2)#height
-
-                d = depths[i][width][height] #self.getQuadState()[:, 1:4]
-
+                depth = action[i,2]
                 pos = self.getQuadState()[i][1:4]
                 vel = self.getQuadState()[i][8:11]
                 att = self.getQuadState()[i][4:8]
                 omega = self.getQuadState()[i][11:14]
-
-                #x, y = next_target(d)
-                # x depth, y,z width height of image
-                #x, y, z = mpc_step((x, y))
-                #print(height)
-                #print(d)
-                width /= (self.img_width/2)
-                height /= (self.img_height/2)
-                d = d * 500
-                real_action[i] = actual_mpc(d, width, height, pos, vel, att, omega)
+                real_action[i] = actual_mpc(float(depth), width, height, pos, vel, att, omega)
 
 
         self.wrapper.step(

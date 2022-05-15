@@ -257,13 +257,11 @@ bool VisionEnv::step(const Ref<Vector<>> act, Ref<Vector<>> obs,
 
   // compute actual control actions
   // act has range between [-1, 1] due to Tanh layer of the NN policy
-
   if(use_mpc_ != "yes"){
     pi_act_ = act.cwiseProduct(act_std_) + act_mean_;
   }else{
     pi_act_ = act;
   }
-
   cmd_.t += sim_dt_;
   quad_state_.t += sim_dt_;
 
@@ -436,11 +434,12 @@ Scalar attitude_reward = 0.6 * log(velX + 1) * tanh(1.1 * drone_dir.dot(camera_d
  Scalar Wall_behind_penalty = velocityX > survive_rew_ ? 0 : velocityX / 30;
 
   //  change progress reward as survive reward
+
      // Scalar total_reward =
      //       dist_reward + collision_penalty + attitude_reward + Wall_behind_penalty;
     Scalar total_reward =0;
      if(use_mpc_ == "yes"){
-       total_reward = dist_reward + collision_penalty + Wall_behind_penalty;//+ attitude_reward 
+       total_reward = dist_reward + collision_penalty + Wall_behind_penalty;//+ attitude_reward
      }else{
       total_reward = dist_reward + Wall_behind_penalty;
      }
